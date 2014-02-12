@@ -38,6 +38,11 @@ extern  "C" {
  * 2009-12-11
  */
 
+#ifdef STM32F40_41xxx
+#include "FreeRTOS.h"
+#include "queue.h"
+#endif
+
 struct llc_link;
 
 #define LLCP_VERSION_MAJOR 1

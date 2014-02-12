@@ -18,22 +18,35 @@
 #include "utils.h"
 
 
-// Private functions.
-void vNum2String( char *s, uint8_t *pPos, uint32_t u32Number, uint8_t u8Base);
+#define DMA_TX_BUF_SIZE 32
+#define DMA_RX_BUF_SIZE 8
+
+uint8_t TxBuffer[DMA_TX_BUF_SIZE];
+uint8_t RxBuffer[DMA_RX_BUF_SIZE];
+static DMA_InitTypeDef  DMA_TX_InitStructure;
+static xSemaphoreHandle xSemaphore;
+
 
 // Total buffer size for all debug messages.
-#define DEBUG_QUEUE_SIZE	256
+#define DEBUG_QUEUE_SIZE	128
 xQueueHandle xDebugQueue;
-
 uint8_t TxBuffer[TxBufferLength];
-
 static xTaskHandle hDebugTask;
 
 
+void debug_uart2_config(void);
+void DMA_usart2_Configuration(void);
+
+void vNum2String( char *s, uint8_t *pPos, uint32_t u32Number, uint8_t u8Base);
+
 void InitDebug()
 {
+	debug_uart2_config();
+	DMA_usart2_Configuration();
 
+	xSemaphore = xSemaphoreCreateBinary();
 
+	vDebugInitQueue();
 }
 
 void debug_uart2_config(void){
@@ -49,7 +62,7 @@ void debug_uart2_config(void){
 	/* GPIOA clock enable */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
 
-	/* GPIOA Configuration:  USART2 TX on PD2 and RX on PD3 */
+	/* GPIOA Configuration:  USART2 TX on PA2 and RX on PA3 */
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
@@ -67,7 +80,9 @@ void debug_uart2_config(void){
 	USART_InitStructure.USART_Parity = USART_Parity_No;
 	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
 	USART_InitStructure.USART_Mode = USART_Mode_Rx|USART_Mode_Tx;
+
 	USART_Init(USART2, &USART_InitStructure);
+	USART_Cmd(USART2, ENABLE); // enable USART2
 
 	/* USART Clock Initialization  */
 	USART_ClockInitstructure.USART_Clock   = USART_Clock_Disable ;
@@ -75,63 +90,159 @@ void debug_uart2_config(void){
 	USART_ClockInitstructure.USART_LastBit = USART_LastBit_Enable;
 	USART_ClockInitstructure.USART_CPHA    = USART_CPHA_1Edge;
 
+	USART_ClockInit(USART2, &USART_ClockInitstructure);
+
 	// USART IRQ init
-	NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream6_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0xF;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
 
-	/* USART configuration */
-	USART_Init(USART2, &USART_InitStructure);
-	USART_ClockInit(USART2, &USART_ClockInitstructure);
+	// Enable the USART2 TX DMA Interrupt
 	NVIC_Init(&NVIC_InitStructure);
-	USART_Cmd(USART2, ENABLE); // enable USART2
+
+	// Enable the USART2 RX DMA Interrupt
+//	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream5_IRQn;
+//	NVIC_Init(&NVIC_InitStructure);
 }
+
+void usart_send(uint8_t* buf, int len){
+
+    DMA_Cmd(DMA1_Stream6, DISABLE);
+    while(DMA_GetCmdStatus(DMA1_Stream6)!= DISABLE); // wait until it is disabled
+      DMA1_Stream6->M0AR = (uint32_t)buf;
+      DMA1_Stream6->NDTR = (uint16_t)len;
+    DMA_Cmd(DMA1_Stream6, ENABLE);
+}
+
+void DMA_usart2_Configuration(void)
+{
+  DMA_InitTypeDef  DMA_RX_InitStructure;
+
+  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);
+
+  DMA_DeInit(DMA1_Stream6);
+
+  DMA_TX_InitStructure.DMA_Channel = DMA_Channel_4;
+  DMA_TX_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral; // Transmit
+  DMA_TX_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&USART2->DR;
+  DMA_TX_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+  DMA_TX_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+  DMA_TX_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+  DMA_TX_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+  DMA_TX_InitStructure.DMA_Mode = DMA_Mode_Normal;
+  DMA_TX_InitStructure.DMA_Priority = DMA_Priority_High;
+  DMA_TX_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Enable;
+  DMA_TX_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
+  DMA_TX_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+  DMA_TX_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+
+//  DMA_TX_InitStructure.DMA_Memory0BaseAddr = (uint32_t)teststring;
+//  DMA_TX_InitStructure.DMA_BufferSize = (uint16_t)6;
+
+  DMA_Init(DMA1_Stream6, &DMA_TX_InitStructure);
+
+  USART_DMACmd(USART2, USART_DMAReq_Tx, ENABLE);
+  DMA_ITConfig(DMA1_Stream6, DMA_IT_TC, ENABLE);
+  DMA_Cmd(DMA1_Stream6, ENABLE);
+/*
+  memcpy(&DMA_RX_InitStructure,&DMA_TX_InitStructure,sizeof(DMA_InitTypeDef));
+
+  DMA_DeInit(DMA1_Stream5);
+
+  DMA_RX_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory; // Receive
+  DMA_RX_InitStructure.DMA_Memory0BaseAddr = (uint32_t)RxBuffer;
+  DMA_RX_InitStructure.DMA_BufferSize = DMA_RX_BUF_SIZE;
+  DMA_RX_InitStructure.DMA_Mode = DMA_Mode_Circular;
+  DMA_Init(DMA1_Stream6, &DMA_RX_InitStructure);
+
+  USART_DMACmd(UART2, USART_DMAReq_Rx, ENABLE);
+
+  // Enable DMA Stream Half Transfer and Transfer Complete interrupt
+  DMA_ITConfig(DMA1_Stream5, DMA_IT_TC, ENABLE);
+  DMA_ITConfig(DMA1_Stream5, DMA_IT_HT, ENABLE);
+*/
+
+}
+
+void DMA1_Stream6_IRQHandler(void){
+
+	portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+
+    if(DMA_GetITStatus(DMA1_Stream6, DMA_IT_TCIF6))
+    {
+        DMA_ClearITPendingBit(DMA1_Stream6,DMA_IT_TCIF6);
+    }
+
+    xSemaphoreGiveFromISR(xSemaphore,&xHigherPriorityTaskWoken);
+}
+
+/*
+void DMA1_Stream5_IRQHandler(void)
+{
+  // Test on DMA Stream Transfer Complete interrupt
+  if (DMA_GetITStatus(DMA1_Stream5, DMA_IT_TCIF2))
+  {
+    // Clear DMA Stream Transfer Complete interrupt pending bit
+    DMA_ClearITPendingBit(DMA1_Stream5, DMA_IT_TCIF2);
+  }
+
+  // Test on DMA Stream Half Transfer interrupt
+  if (DMA_GetITStatus(DMA1_Stream5, DMA_IT_HTIF2))
+  {
+    // Clear DMA Stream Half Transfer interrupt pending bit
+    DMA_ClearITPendingBit(DMA1_Stream5, DMA_IT_HTIF2);
+  }
+}
+*/
+
 
 // ============================================================================
 void vDebugInitQueue( void ) {
-	xDebugQueue = xQueueCreate( DEBUG_QUEUE_SIZE, sizeof( char ) );
+	xDebugQueue = xQueueCreate( DEBUG_QUEUE_SIZE, sizeof(DQ) );
 }
 
 // ============================================================================
 void vDebugTask(void* pvParameters ) {
 	DQ dq;
+	DQ* pdq = &dq;
 	portBASE_TYPE xStatus;
 
-	/* The parameters are not used. */
-	( void ) pvParameters;
+	InitDebug();
 
-	debug_uart2_config();
-
-	vDebugString( "Debug task started.\r\n");
+	vDebugString( "Debug task started\r\n");
 
 	for(;;) {
 
-		xStatus = xQueueReceive( xDebugQueue, &dq, 10 / portTICK_RATE_MS );
+		if(xSemaphoreTake(xSemaphore,(portTickType)50) != pdTRUE){
+			xStatus = xQueueReceive( xDebugQueue, &pdq, (portTickType)portMAX_DELAY);
+			usart_send(dq.data,dq.length*sizeof(uint8_t));
+		}
 
-		memcpy(TxBuffer,dq.data,dq.length*sizeof(uint8_t));
-
-		// DMA_TX_command
-
-		taskYIELD();
 	}
 }
 
+void createDebugTask(void){
+	xTaskCreate( vDebugTask, ( signed char * ) "DebugTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, NULL );
+}
 
 // This function copies the the given string into the OS queue.  If the queue
 // is full then the rest of the string is ignored.
 // ToDo: Ignoring a full queue is not good.
 // ============================================================================
-void vDebugString( char *s ) {
+void vDebugString( uint8_t* s ) {
 	portBASE_TYPE xStatus;
+
+	DQ dq;
+	DQ* pdq = &dq;
+
+	dq.length = strlen(s);
+	memcpy((uint8_t*)&dq.data,(uint8_t*)s,dq.length*sizeof(uint8_t)+sizeof(uint16_t));
 
 	// Once we start coping a string into the queue we don't want to get
 	// interrupted.  The copy must be done quickly since interrupts are off!
 	taskENTER_CRITICAL();
-	while ( *s ) {
-		xStatus = xQueueSendToBack( xDebugQueue, s++, 0 );
-		if ( xStatus == errQUEUE_FULL ) break;
-	}
+		xStatus = xQueueSendToBack( xDebugQueue, &pdq , 0 );
 	taskEXIT_CRITICAL();
 }
 

@@ -17,7 +17,7 @@
 
 #include "utils.h"
 
-//#define _TESTING_
+#define _TESTING_
 
 static void nfc_uart3_config(void);
 static void uart_send(uint8_t byte);
@@ -46,6 +46,7 @@ void vNFCTask(void *vParameter){
 		uart_send(0x55);
 		vTaskDelay(100);
 #endif
+
 
 	}
 }
@@ -83,12 +84,14 @@ void nfc_uart3_config(void){
 	USART_InitStructure.USART_Mode = USART_Mode_Rx|USART_Mode_Tx;
 	USART_Init(USART3, &USART_InitStructure);
 
-	/* USART Clock Initialization  */
+/*
+	/ USART Clock Initialization
 	USART_ClockInitstructure.USART_Clock   = USART_Clock_Disable ;
 	USART_ClockInitstructure.USART_CPOL    = USART_CPOL_Low ;
 	USART_ClockInitstructure.USART_LastBit = USART_LastBit_Enable;
 	USART_ClockInitstructure.USART_CPHA    = USART_CPHA_1Edge;
-
+	USART_ClockInit(USART3, &USART_ClockInitstructure);
+*/
 	// USART IRQ init
 	NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
@@ -97,7 +100,6 @@ void nfc_uart3_config(void){
 
 	/* USART configuration */
 	USART_Init(USART3, &USART_InitStructure);
-	USART_ClockInit(USART3, &USART_ClockInitstructure);
 	NVIC_Init(&NVIC_InitStructure);
 	USART_Cmd(USART3, ENABLE); // enable USART3
 }

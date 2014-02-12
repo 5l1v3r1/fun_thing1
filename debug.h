@@ -9,16 +9,17 @@
 #define DEBUG_H_
 
 void vDebugInitQueue( void );
-void vDebugString( char *s );
+void vDebugString( uint8_t* s );
 void vDebugPrintf(const char *fmt, ...);
 void vDebugPrintResetType( void );
+void createDebugTask(void);
 
 #define TxBufferLength 32
 
 typedef struct DebugQueue
 {
+	uint16_t length;
 	uint8_t  data[TxBufferLength];
-	uint32_t length;
 }DQ;
 
 #endif /* DEBUG_H_ */

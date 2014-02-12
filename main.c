@@ -165,7 +165,7 @@
 
 #include "led.h"
 //#include "nfc/nfc.h"
-
+#include "debug.h"
 
 /* Hardware and starter kit includes. */
 #include "stm32f4xx.h"
@@ -219,6 +219,7 @@ int main(void)
 
 	createLEDTask();
 	createNFCTask();
+	createDebugTask();
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
