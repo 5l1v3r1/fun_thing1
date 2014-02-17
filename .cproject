@@ -73,9 +73,13 @@
 									<listOptionValue builtIn="false" value="&quot;../include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;../libs/CMSIS/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;../libs/StdPeriph/include&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/freeRTOS_test/src/include}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/freeRTOS_test/src/nfc/include}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/freeRTOS_test/src/freeRTOS/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/fun_thing1/src/ethernet/lwip-1.4.1/src/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/fun_thing1/src/ethernet/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/fun_thing1/src/ethernet/lwip-1.4.1/port/STM32F4x7}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/fun_thing1/src/ethernet/lwip-1.4.1/src/include/ipv4}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/fun_thing1/src/nfc/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/fun_thing1/src/freeRTOS/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/fun_thing1/include}&quot;"/>
 								</option>
 								<option id="ilg.gnuarmeclipse.managedbuild.cross.option.c.compiler.std.29365057" name="Language standard" superClass="ilg.gnuarmeclipse.managedbuild.cross.option.c.compiler.std" value="ilg.gnuarmeclipse.managedbuild.cross.option.c.compiler.std.gnu99" valueType="enumerated"/>
 								<option id="ilg.gnuarmeclipse.managedbuild.cross.option.c.compiler.defs.1413701165" name="Defined symbols (-D)" superClass="ilg.gnuarmeclipse.managedbuild.cross.option.c.compiler.defs" valueType="definedSymbols">

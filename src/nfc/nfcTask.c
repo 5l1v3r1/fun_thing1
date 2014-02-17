@@ -13,50 +13,92 @@
 #include "queue.h"
 #include "semphr.h"
 
+#include "debug.h"
+
 #include "stm32f4xx.h"
 
 #include "utils.h"
+#include "nfc_task.h"
+
+#define RX3_QUEUE_SIZE 64
+#define TX3_QUEUE_SIZE 8
 
 #define _TESTING_
 
+
+
 static void nfc_uart3_config(void);
-static void uart_send(uint8_t byte);
+static void DMA_usart3_Configuration(void);
+void USARTx_Send(DMA_Stream_TypeDef* DMAy_Streamx, uint8_t* buf, int len);
 
 static void nfc_exti0_config(void);
+static void vNFCTxTask(void* pvParameters );
 static void vNFCTask(void *vParameter);
 
-xSemaphoreHandle nfc_task_rxEvent;
+xSemaphoreHandle xSemaphoreTx;
+static xQueueHandle xQueueRx;
+static xQueueHandle xQueueTx;
 
 void createNFCTask(){
 
 	nfc_exti0_config(); //IRQ from PN532
-	nfc_task_rxEvent = xSemaphoreCreateBinary();
 
+	xSemaphoreTx = xSemaphoreCreateBinary();
+	xQueueRx = xQueueCreate( RX3_QUEUE_SIZE, sizeof(uint8_t));
+	xQueueTx = xQueueCreate( TX3_QUEUE_SIZE, sizeof(TQ));
+
+	xTaskCreate( vNFCTxTask, ( signed char * ) "NFCTxTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, NULL );
 	xTaskCreate( vNFCTask, ( signed char * ) "NFCTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, NULL );
 
+}
+
+void NFC_Send(uint8_t* tx_data,uint16_t len)
+{
+	TQ tq;
+	TQ* ptq = &tq;
+
+	assert(xQueueTx);
+
+	memcpy(tq.data,tx_data,len);
+	tq.length = len;
+
+	while(xQueueSend(xQueueTx,ptq,(portTickType)0)==pdFALSE);
+}
+
+void vNFCTxTask(void* pvParameters ) {
+	TQ tq;
+	TQ* ptq = &tq;
+	portBASE_TYPE xStatus;
+
+	vDebugString((uint8_t*) "NFC TX task started\r\n");
+
+	for(;;) {
+
+		if(xSemaphoreTake(xSemaphoreTx,(portTickType)portMAX_DELAY) != pdTRUE){
+			xStatus = xQueueReceive( xQueueTx, &ptq, (portTickType)portMAX_DELAY);
+			USARTx_Send(DMA1_Stream3,tq.data,tq.length*sizeof(uint8_t));
+		}
+	}
 }
 
 void vNFCTask(void *vParameter){
 
 	nfc_uart3_config();
+	DMA_usart3_Configuration();
 
 	for(;;){
 
-#ifdef _TESTING_
-		uart_send(0x55);
-		vTaskDelay(100);
-#endif
+	#ifdef _TESTING_
 
+			vTaskDelay(100);
+	#endif
 
 	}
 }
 
 void nfc_uart3_config(void){
-
 	GPIO_InitTypeDef GPIO_InitStructure;
 	USART_InitTypeDef USART_InitStructure;
-	USART_ClockInitTypeDef USART_ClockInitstructure;
-	NVIC_InitTypeDef NVIC_InitStructure;
 
 	/* enable peripheral clock for USART3 */
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
@@ -64,7 +106,7 @@ void nfc_uart3_config(void){
 	/* GPIOD clock enable */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
 
-	/* GPIOD Configuration:  USART3 TX on PD8 and RX on PD9 */
+	/* GPIOD Configuration: USART3 TX on PD8 and RX on PD9 */
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
@@ -84,51 +126,105 @@ void nfc_uart3_config(void){
 	USART_InitStructure.USART_Mode = USART_Mode_Rx|USART_Mode_Tx;
 	USART_Init(USART3, &USART_InitStructure);
 
-/*
-	/ USART Clock Initialization
-	USART_ClockInitstructure.USART_Clock   = USART_Clock_Disable ;
-	USART_ClockInitstructure.USART_CPOL    = USART_CPOL_Low ;
-	USART_ClockInitstructure.USART_LastBit = USART_LastBit_Enable;
-	USART_ClockInitstructure.USART_CPHA    = USART_CPHA_1Edge;
-	USART_ClockInit(USART3, &USART_ClockInitstructure);
-*/
-	// USART IRQ init
-	NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0xF;
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-
 	/* USART configuration */
 	USART_Init(USART3, &USART_InitStructure);
-	NVIC_Init(&NVIC_InitStructure);
 	USART_Cmd(USART3, ENABLE); // enable USART3
 }
 
-void USART3_IRQHandler(void)
-{
-	portBASE_TYPE pxHigherPriorityTaskWokenv = pdFALSE;
+static uint8_t usart3_rx_fifo_single_buffer;
 
-	if( USART_GetITStatus(USART3, USART_IT_RXNE))
-	{
-	  uint8_t c = USART3->DR;
-	  xQueueSendFromISR(nfc_task_rxEvent,&c,&pxHigherPriorityTaskWokenv);
-	  USART_ClearITPendingBit(USART3, USART_IT_RXNE);
-	}
+void DMA_usart3_Configuration(void)
+{
+  DMA_InitTypeDef DMA_RX_InitStructure;
+  DMA_InitTypeDef DMA_TX_InitStructure;
+
+  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);
+
+  DMA_DeInit(DMA1_Stream3);
+  DMA_TX_InitStructure.DMA_Channel = DMA_Channel_4;
+  DMA_TX_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral; // Transmit
+  DMA_TX_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&USART2->DR;
+  DMA_TX_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+  DMA_TX_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+  DMA_TX_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+  DMA_TX_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+  DMA_TX_InitStructure.DMA_Mode = DMA_Mode_Normal;
+  DMA_TX_InitStructure.DMA_Priority = DMA_Priority_High;
+  DMA_TX_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Enable;
+  DMA_TX_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
+  DMA_TX_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+  DMA_TX_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+
+  DMA_Init(DMA1_Stream3, &DMA_TX_InitStructure);
+
+  USART_DMACmd(USART3, USART_DMAReq_Tx, ENABLE);
+  DMA_ITConfig(DMA1_Stream3, DMA_IT_TC, ENABLE);
+  DMA_Cmd(DMA1_Stream3, ENABLE);
+  
+  DMA_DeInit(DMA1_Stream1);
+  DMA_RX_InitStructure.DMA_Channel = DMA_Channel_4;
+  DMA_RX_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory; // Receive
+  DMA_RX_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&USART2->DR;
+  DMA_RX_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+  DMA_RX_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+  DMA_RX_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+  DMA_RX_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+  DMA_RX_InitStructure.DMA_Mode = DMA_Mode_Normal;
+  DMA_RX_InitStructure.DMA_Priority = DMA_Priority_High;
+  DMA_RX_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Enable;
+  DMA_RX_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
+  DMA_RX_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+  DMA_RX_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+
+  DMA_RX_InitStructure.DMA_Memory0BaseAddr = (uint32_t)(&usart3_rx_fifo_single_buffer);
+  DMA_RX_InitStructure.DMA_BufferSize = (uint16_t)1;
+
+  DMA_Init(DMA1_Stream1, &DMA_RX_InitStructure);
+
+  USART_DMACmd(USART3, USART_DMAReq_Rx, ENABLE);
+  DMA_ITConfig(DMA1_Stream1, DMA_IT_TC, ENABLE);
+  DMA_Cmd(DMA1_Stream1, ENABLE);
 
 }
 
-void uart_send(uint8_t byte)
-{
-	USART_SendData(USART3,byte);
-   // while (USART_GetFlagStatus(USART3, USART_FLAG_TC) == RESET);
-   // USART_SendData(USART3, byte);
+void USARTx_Send(DMA_Stream_TypeDef* DMAy_Streamx, uint8_t* buf, int len){
+
+    DMA_Cmd(DMAy_Streamx, DISABLE);
+    while(DMA_GetCmdStatus(DMAy_Streamx)!= DISABLE); // wait until it is disabled
+    DMAy_Streamx->M0AR = (uint32_t)buf;
+    DMAy_Streamx->NDTR = (uint16_t)len;
+    DMA_Cmd(DMAy_Streamx, ENABLE);
+}
+
+void DMA1_Stream3_IRQHandler(void){ // USART TX
+
+    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+
+    if(DMA_GetITStatus(DMA1_Stream3, DMA_IT_TCIF3))
+    {
+        DMA_ClearITPendingBit(DMA1_Stream3,DMA_IT_TCIF3);
+    }
+
+    xSemaphoreGiveFromISR(xSemaphoreTx,&xHigherPriorityTaskWoken);
+}
+
+void DMA1_Stream1_IRQHandler(void){ // USART RX
+
+    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+
+    if(DMA_GetITStatus(DMA1_Stream1, DMA_IT_TCIF1))
+    {
+        DMA_ClearITPendingBit(DMA1_Stream1,DMA_IT_TCIF1);
+    }
+
+    xQueueSendFromISR(xQueueRx,&usart3_rx_fifo_single_buffer,&xHigherPriorityTaskWoken);
 }
 
 void nfc_exti0_config(void){
 
-    EXTI_InitTypeDef   EXTI_InitStructure;
-    GPIO_InitTypeDef   GPIO_InitStructure;
-    NVIC_InitTypeDef   NVIC_InitStructure;
+    EXTI_InitTypeDef EXTI_InitStructure;
+    GPIO_InitTypeDef GPIO_InitStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
 
     /* Enable GPIOD clock */
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
@@ -167,5 +263,3 @@ void EXTI0_IRQHandler(void)
 		// to do something
 	}
 }
-
-
