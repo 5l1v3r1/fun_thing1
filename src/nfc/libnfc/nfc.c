@@ -131,8 +131,6 @@ struct nfc_driver_list {
 
 const struct nfc_driver_list *nfc_drivers = NULL;
 
-extern struct nfc_driver pn532_uart_driver;
-
 static void nfc_drivers_init(void)
 {
   nfc_register_driver(&pn532_uart_driver);
