@@ -129,35 +129,12 @@ struct nfc_driver_list {
 
 const struct nfc_driver_list *nfc_drivers = NULL;
 
-static void
-nfc_drivers_init(void)
-{
-#if defined (DRIVER_PN53X_USB_ENABLED)
-  nfc_register_driver(&pn53x_usb_driver);
-#endif /* DRIVER_PN53X_USB_ENABLED */
-#if defined (DRIVER_ACR122_PCSC_ENABLED)
-  nfc_register_driver(&acr122_pcsc_driver);
-#endif /* DRIVER_ACR122_PCSC_ENABLED */
-#if defined (DRIVER_ACR122_USB_ENABLED)
-  nfc_register_driver(&acr122_usb_driver);
-#endif /* DRIVER_ACR122_USB_ENABLED */
-#if defined (DRIVER_ACR122S_ENABLED)
-  nfc_register_driver(&acr122s_driver);
-#endif /* DRIVER_ACR122S_ENABLED */
-#if defined (DRIVER_PN532_UART_ENABLED)
-  nfc_register_driver(&pn532_uart_driver);
-#endif /* DRIVER_PN532_UART_ENABLED */
-#if defined (DRIVER_PN532_SPI_ENABLED)
-  nfc_register_driver(&pn532_spi_driver);
-#endif /* DRIVER_PN532_SPI_ENABLED */
-#if defined (DRIVER_PN532_I2C_ENABLED)
-  nfc_register_driver(&pn532_i2c_driver);
-#endif /* DRIVER_PN532_I2C_ENABLED */
-#if defined (DRIVER_ARYGON_ENABLED)
-  nfc_register_driver(&arygon_driver);
-#endif /* DRIVER_ARYGON_ENABLED */
-}
+extern struct nfc_driver pn532_uart_driver;
 
+static void nfc_drivers_init(void)
+{
+  nfc_register_driver(&pn532_uart_driver);
+}
 
 /** @ingroup lib
  * @brief Register an NFC device driver with libnfc.
@@ -166,8 +143,7 @@ nfc_drivers_init(void)
  * @param pnd Pointer to an NFC device driver to be registered.
  * @retval NFC_SUCCESS If the driver registration succeeds.
  */
-int
-nfc_register_driver(const struct nfc_driver *ndr)
+int nfc_register_driver(const struct nfc_driver *ndr)
 {
   if (!ndr)
     return NFC_EINVARG;
@@ -266,11 +242,13 @@ nfc_open(nfc_context *context, const nfc_connstring connstring)
     pnd = ndr->open(context, ncs);
     // Test if the opening was successful
     if (pnd == NULL) {
+#if 0
       if (0 == strncmp("usb", ncs, strlen("usb"))) {
         // We've to test the other usb drivers before giving up
         pndl = pndl->next;
         continue;
       }
+#endif
       log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "Unable to open \"%s\".", ncs);
       return NULL;
     }

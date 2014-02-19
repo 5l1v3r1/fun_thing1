@@ -164,8 +164,8 @@
 #include "misc.h"
 
 #include "led.h"
-//#include "nfc/nfc.h"
 #include "debug.h"
+#include "nfc_task.h"
 
 /* Hardware and starter kit includes. */
 #include "stm32f4xx.h"
@@ -216,10 +216,11 @@ int main(void)
 	mainCREATE_SIMPLE_LED_FLASHER_DEMO_ONLY is set to 0 (at the top of this
 	file).  See the comments at the top of this file for more information. */
 	//prvOptionallyCreateComprehensveTestApplication();
+	createDebugTask();
 
 	createLEDTask();
 	createNFCTask();
-	createDebugTask();
+
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();

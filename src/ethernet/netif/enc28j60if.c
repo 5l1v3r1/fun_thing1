@@ -49,6 +49,8 @@
 
 #include "enc28j60_lowlevel.h"
 
+#if 0
+
 /* Define those to better describe your network interface. */
 #define IFNAME0 'e'
 #define IFNAME1 'n'
@@ -316,3 +318,5 @@ void enc28j60_periodic(struct netif *netif)
 {
 	enc28j60_if_input(netif);
 }
+
+#endif

@@ -7,6 +7,9 @@
 #include <stdarg.h>
 #include <ctype.h>
 
+#include <stdio.h>
+#include <string.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -117,7 +120,7 @@ void usart_send(uint8_t* buf, int len){
 
 void DMA_usart2_Configuration(void)
 {
-  DMA_InitTypeDef  DMA_RX_InitStructure;
+  // DMA_InitTypeDef  DMA_RX_InitStructure;
 
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);
 
@@ -210,7 +213,7 @@ void vDebugTask(void* pvParameters ) {
 
 	InitDebug();
 
-	vDebugString( "Debug task started\r\n");
+	vDebugString( (uint8_t)"Debug task started\r\n");
 
 	for(;;) {
 
@@ -223,7 +226,9 @@ void vDebugTask(void* pvParameters ) {
 }
 
 void createDebugTask(void){
-	xTaskCreate( vDebugTask, ( signed char * ) "DebugTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, NULL );
+
+	vDebugInitQueue();
+	xTaskCreate( vDebugTask, ( signed char * ) "DebugTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, &hDebugTask );
 }
 
 // This function copies the the given string into the OS queue.  If the queue
@@ -236,7 +241,7 @@ void vDebugString( uint8_t* s ) {
 	DQ dq;
 	DQ* pdq = &dq;
 
-	dq.length = strlen(s);
+	dq.length = (uint16_t)strlen(s);
 	memcpy((uint8_t*)&dq.data,(uint8_t*)s,dq.length*sizeof(uint8_t)+sizeof(uint16_t));
 
 	// Once we start coping a string into the queue we don't want to get
@@ -354,7 +359,7 @@ void vDebugPrintf(const char *fmt, ...) {
         }
     }
     sTmp[pos++] = 0;		// Mark the end of the string.
-    vDebugString( sTmp );	// Copy the string into the OS queue.
+    vDebugString( (uint8_t*)sTmp );	// Copy the string into the OS queue.
     return;
 }
 

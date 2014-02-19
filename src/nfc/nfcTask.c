@@ -18,10 +18,13 @@
 #include "stm32f4xx.h"
 
 #include "utils.h"
+
+#include "nfc/nfc.h"
+
 #include "nfc_task.h"
 
-#define RX3_QUEUE_SIZE 64
-#define TX3_QUEUE_SIZE 8
+#define RX3_QUEUE_SIZE 32
+#define TX3_QUEUE_SIZE 4
 
 #define _TESTING_
 
@@ -35,38 +38,42 @@ static void nfc_exti0_config(void);
 static void vNFCTxTask(void* pvParameters );
 static void vNFCTask(void *vParameter);
 
-xSemaphoreHandle xSemaphoreTx;
+static xSemaphoreHandle xSemaphoreTx;
 static xQueueHandle xQueueRx;
 static xQueueHandle xQueueTx;
 
-void createNFCTask(){
+static nfc_device *pnd = NULL;
+static nfc_context *context;
 
-	nfc_exti0_config(); //IRQ from PN532
+void createNFCTask(void){
+
+	// nfc_exti0_config(); //IRQ from PN532
 
 	xSemaphoreTx = xSemaphoreCreateBinary();
 	xQueueRx = xQueueCreate( RX3_QUEUE_SIZE, sizeof(uint8_t));
 	xQueueTx = xQueueCreate( TX3_QUEUE_SIZE, sizeof(TQ));
 
-	xTaskCreate( vNFCTxTask, ( signed char * ) "NFCTxTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, NULL );
-	xTaskCreate( vNFCTask, ( signed char * ) "NFCTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, NULL );
+	xTaskCreate( vNFCTxTask, ( signed char * ) "nfcTx", configMINIMAL_STACK_SIZE*2, ( void * ) NULL, (tskIDLE_PRIORITY+3)| portPRIVILEGE_BIT, NULL );
+	xTaskCreate( vNFCTask,   ( signed char * ) "NFC",   configMINIMAL_STACK_SIZE*2, ( void * ) NULL, (tskIDLE_PRIORITY+2)| portPRIVILEGE_BIT, NULL );
 
 }
 
 void NFC_Send(uint8_t* tx_data,uint16_t len)
 {
-	TQ tq;
-	TQ* ptq = &tq;
+	TQ tq1;
+	TQ* ptq = &tq1;
 
 	assert(xQueueTx);
 
-	memcpy(tq.data,tx_data,len);
-	tq.length = len;
+	memcpy(tq1.data,tx_data,len);
+	tq1.length = len;
 
 	while(xQueueSend(xQueueTx,ptq,(portTickType)0)==pdFALSE);
 }
 
+TQ tq;
+
 void vNFCTxTask(void* pvParameters ) {
-	TQ tq;
 	TQ* ptq = &tq;
 	portBASE_TYPE xStatus;
 
@@ -86,13 +93,17 @@ void vNFCTask(void *vParameter){
 	nfc_uart3_config();
 	DMA_usart3_Configuration();
 
+
+	nfc_init(&context);
+	pnd = nfc_open(context, NULL);
+
+
+	nfc_close(pnd);
+	nfc_exit(context);
+
 	for(;;){
 
-	#ifdef _TESTING_
-
-			vTaskDelay(100);
-	#endif
-
+			vTaskDelay(1000);
 	}
 }
 

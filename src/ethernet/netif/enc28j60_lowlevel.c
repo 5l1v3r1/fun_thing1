@@ -33,12 +33,12 @@
 #include "enc28j60_lowlevel.h"
 #include "enc28j60def.h"
 
-#include <avr/io.h>
-#include <avr/interrupt.h>
 
 //#ifdef ENC28J60_ERRATA_B7
-#include <util/delay.h>
+//KJW #include <util/delay.h>
 //#endif //ENC28J60_ERRATA_B7
+
+#if 0 //KJW
 
 #define cbi(p, q) ((p) &= ~_BV(q))
 #define sbi(p, q) ((p) |= _BV(q))
@@ -535,3 +535,5 @@ void enc28j60RegDump(void)
      (enc28j60Read(MACLCON1)<<8)|enc28j60Read(ETXNDL),
 #endif//ENC28J60_DEBUG     
 }
+
+#endif

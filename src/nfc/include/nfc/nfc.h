@@ -39,6 +39,8 @@
 #  include <stdint.h>
 #  include <stdbool.h>
 
+#define LOG
+
 #  ifdef _WIN32
 /* Windows platform */
 #    ifndef _WINDLL

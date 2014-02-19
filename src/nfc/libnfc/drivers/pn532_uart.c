@@ -66,11 +66,7 @@
 const struct pn53x_io pn532_uart_io;
 struct pn532_uart_data {
   serial_port port;
-#ifndef WIN32
-  int     iAbortFds[2];
-#else
-  volatile bool abort_flag;
-#endif
+  bool abort_flag;
 };
 
 // Prototypes
@@ -127,18 +123,7 @@ pn532_uart_scan(const nfc_context *context, nfc_connstring connstrings[], const 
       CHIP_DATA(pnd)->type = PN532;
       // This device starts in LowVBat power mode
       CHIP_DATA(pnd)->power_mode = LOWVBAT;
-
-#ifndef WIN32
-      // pipe-based abort mecanism
-      if (pipe(DRIVER_DATA(pnd)->iAbortFds) < 0) {
-        uart_close(DRIVER_DATA(pnd)->port);
-        pn53x_data_free(pnd);
-        nfc_device_free(pnd);
-        return 0;
-      }
-#else
       DRIVER_DATA(pnd)->abort_flag = false;
-#endif
 
       // Check communication using "Diagnose" command, with "Communication test" (0x00)
       int res = pn53x_check_communication(pnd);
@@ -177,12 +162,6 @@ pn532_uart_close(nfc_device *pnd)
 
   // Release UART port
   uart_close(DRIVER_DATA(pnd)->port);
-
-#ifndef WIN32
-  // Release file descriptors used for abort mecanism
-  close(DRIVER_DATA(pnd)->iAbortFds[0]);
-  close(DRIVER_DATA(pnd)->iAbortFds[1]);
-#endif
 
   pn53x_data_free(pnd);
   nfc_device_free(pnd);
@@ -264,17 +243,7 @@ pn532_uart_open(const nfc_context *context, const nfc_connstring connstring)
   CHIP_DATA(pnd)->timer_correction = 48;
   pnd->driver = &pn532_uart_driver;
 
-#ifndef WIN32
-  // pipe-based abort mecanism
-  if (pipe(DRIVER_DATA(pnd)->iAbortFds) < 0) {
-    uart_close(DRIVER_DATA(pnd)->port);
-    pn53x_data_free(pnd);
-    nfc_device_free(pnd);
-    return NULL;
-  }
-#else
   DRIVER_DATA(pnd)->abort_flag = false;
-#endif
 
   // Check communication using "Diagnose" command, with "Communication test" (0x00)
   if (pn53x_check_communication(pnd) < 0) {
@@ -366,11 +335,8 @@ pn532_uart_receive(nfc_device *pnd, uint8_t *pbtData, const size_t szDataLen, in
   size_t len;
   void *abort_p = NULL;
 
-#ifndef WIN32
-  abort_p = &(DRIVER_DATA(pnd)->iAbortFds[1]);
-#else
   abort_p = (void *) & (DRIVER_DATA(pnd)->abort_flag);
-#endif
+
 
   pnd->last_error = uart_receive(DRIVER_DATA(pnd)->port, abtRxBuf, 5, abort_p, timeout);
 
@@ -502,14 +468,7 @@ static int
 pn532_uart_abort_command(nfc_device *pnd)
 {
   if (pnd) {
-#ifndef WIN32
-    close(DRIVER_DATA(pnd)->iAbortFds[0]);
-    if (pipe(DRIVER_DATA(pnd)->iAbortFds) < 0) {
-      return NFC_ESOFT;
-    }
-#else
     DRIVER_DATA(pnd)->abort_flag = true;
-#endif
   }
   return NFC_SUCCESS;
 }

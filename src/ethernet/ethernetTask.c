@@ -16,6 +16,9 @@ static xTaskHandle xEthernet;
 uint8_t aTxBuffer[ETH_BUFFERSIZE];
 uint8_t aRxBuffer[ETH_BUFFERSIZE];
 
+void vEthernetTask(void* pvParameters );
+
+
 void createEthernetTask(void){
 
 	xTaskCreate(vEthernetTask,(char*) "EthernetTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, &xEthernet );

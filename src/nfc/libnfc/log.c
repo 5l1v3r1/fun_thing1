@@ -54,8 +54,7 @@ log_priority_to_str(const int priority)
 
 #include "log-internal.h"
 
-void
-log_init(const nfc_context *context)
+void log_init(const nfc_context *context)
 {
 #ifdef ENVVARS
   char str[32];
