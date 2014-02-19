@@ -86,6 +86,8 @@
 #include "target-subr.h"
 #include "drivers.h"
 
+#define DRIVER_PN532_UART_ENABLED
+
 #if defined (DRIVER_ACR122_PCSC_ENABLED)
 #  include "drivers/acr122_pcsc.h"
 #endif /* DRIVER_ACR122_PCSC_ENABLED */
