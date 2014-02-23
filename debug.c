@@ -20,20 +20,17 @@
 #include "debug.h"
 #include "utils.h"
 
+// uint8_t TxBuffer[DEBUG_TxBufferLength];
+// uint8_t RxBuffer[DEBUG_RxBufferLength];
 
-#define DMA_TX_BUF_SIZE 32
-#define DMA_RX_BUF_SIZE 8
-
-uint8_t TxBuffer[DMA_TX_BUF_SIZE];
-uint8_t RxBuffer[DMA_RX_BUF_SIZE];
 static DMA_InitTypeDef  DMA_TX_InitStructure;
 static xSemaphoreHandle xSemaphore;
 
 
 // Total buffer size for all debug messages.
-#define DEBUG_QUEUE_SIZE	128
-xQueueHandle xDebugQueue;
-uint8_t TxBuffer[TxBufferLength];
+#define DEBUG_QUEUE_SIZE	64
+
+static xQueueHandle xDebugQueue;
 static xTaskHandle hDebugTask;
 
 
@@ -47,9 +44,9 @@ void InitDebug()
 	debug_uart2_config();
 	DMA_usart2_Configuration();
 
-	xSemaphore = xSemaphoreCreateBinary();
-
 	vDebugInitQueue();
+
+	xSemaphore = xSemaphoreCreateBinary();
 }
 
 void debug_uart2_config(void){
@@ -109,7 +106,7 @@ void debug_uart2_config(void){
 //	NVIC_Init(&NVIC_InitStructure);
 }
 
-void usart_send(uint8_t* buf, int len){
+void DEBUG_usart_send(uint8_t* buf, int len){
 
     DMA_Cmd(DMA1_Stream6, DISABLE);
     while(DMA_GetCmdStatus(DMA1_Stream6)!= DISABLE); // wait until it is disabled
@@ -175,9 +172,10 @@ void DMA1_Stream6_IRQHandler(void){
     if(DMA_GetITStatus(DMA1_Stream6, DMA_IT_TCIF6))
     {
         DMA_ClearITPendingBit(DMA1_Stream6,DMA_IT_TCIF6);
+        xSemaphoreGiveFromISR(xSemaphore,&xHigherPriorityTaskWoken);
     }
 
-    xSemaphoreGiveFromISR(xSemaphore,&xHigherPriorityTaskWoken);
+
 }
 
 /*
@@ -211,23 +209,23 @@ void vDebugTask(void* pvParameters ) {
 	DQ* pdq = &dq;
 	portBASE_TYPE xStatus;
 
-	InitDebug();
-
-	vDebugString( (uint8_t)"Debug task started\r\n");
+	vDebugString( (uint8_t*)"Debug task started");
 
 	for(;;) {
+		xStatus = xQueueReceive( xDebugQueue, &pdq, (portTickType)portMAX_DELAY);
+		DEBUG_usart_send(dq.data,dq.length*sizeof(uint8_t));
 
-		if(xSemaphoreTake(xSemaphore,(portTickType)50) != pdTRUE){
-			xStatus = xQueueReceive( xDebugQueue, &pdq, (portTickType)portMAX_DELAY);
-			usart_send(dq.data,dq.length*sizeof(uint8_t));
+		if(xSemaphoreTake(xSemaphore,100) != pdTRUE){
+			vTaskDelay(100);
 		}
-
+		else{
+			vTaskDelay(2); // FIFO has 4 words
+		}
 	}
 }
 
 void createDebugTask(void){
 
-	vDebugInitQueue();
 	xTaskCreate( vDebugTask, ( signed char * ) "DebugTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, &hDebugTask );
 }
 
@@ -243,6 +241,9 @@ void vDebugString( uint8_t* s ) {
 
 	dq.length = (uint16_t)strlen(s);
 	memcpy((uint8_t*)&dq.data,(uint8_t*)s,dq.length*sizeof(uint8_t)+sizeof(uint16_t));
+
+	dq.data[dq.length++] = '\r';
+	dq.data[dq.length++] = '\n';
 
 	// Once we start coping a string into the queue we don't want to get
 	// interrupted.  The copy must be done quickly since interrupts are off!

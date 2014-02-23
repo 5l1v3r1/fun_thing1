@@ -34,6 +34,6 @@
 
 #include <nfc/nfc-types.h>
 
-extern const struct nfc_driver pn532_uart_driver;
+extern struct nfc_driver pn532_uart_driver;
 
 #endif // ! __NFC_DRIVER_PN532_UART_H__

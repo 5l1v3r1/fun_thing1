@@ -14,12 +14,13 @@ void vDebugPrintf(const char *fmt, ...);
 void vDebugPrintResetType( void );
 void createDebugTask(void);
 
-#define TxBufferLength 32
+#define DEBUG_TxBufferLength 64
+#define DEBUG_RxBufferLength 8
 
 typedef struct DebugQueue
 {
 	uint16_t length;
-	uint8_t  data[TxBufferLength];
+	uint8_t  data[DEBUG_TxBufferLength];
 }DQ;
 
 #endif /* DEBUG_H_ */

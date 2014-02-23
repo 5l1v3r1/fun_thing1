@@ -216,8 +216,10 @@ int main(void)
 	mainCREATE_SIMPLE_LED_FLASHER_DEMO_ONLY is set to 0 (at the top of this
 	file).  See the comments at the top of this file for more information. */
 	//prvOptionallyCreateComprehensveTestApplication();
-	createDebugTask();
 
+	InitDebug();
+
+	createDebugTask();
 	createLEDTask();
 	createNFCTask();
 

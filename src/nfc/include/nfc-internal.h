@@ -123,9 +123,7 @@ typedef enum {
 
 struct nfc_driver {
   const char *name;
-  const scan_type_enum scan_type;
-  size_t (*scan)(const nfc_context *context, nfc_connstring connstrings[], const size_t connstrings_len);
-  struct nfc_device *(*open)(const nfc_context *context, const nfc_connstring connstring);
+  struct nfc_device *(*open)(const nfc_context *context);
   void (*close)(struct nfc_device *pnd);
   const char *(*strerror)(const struct nfc_device *pnd);
 
@@ -161,7 +159,7 @@ struct nfc_driver {
 #  define DEVICE_NAME_LENGTH  256
 #  define DEVICE_PORT_LENGTH  64
 
-#define MAX_USER_DEFINED_DEVICES 4
+#define MAX_USER_DEFINED_DEVICES 1
 
 struct nfc_user_defined_device {
   char name[DEVICE_NAME_LENGTH];
@@ -175,10 +173,8 @@ struct nfc_user_defined_device {
  * Struct which contains internal options, references, pointers, etc. used by library
  */
 struct nfc_context {
-  bool allow_autoscan;
-  bool allow_intrusive_scan;
   uint32_t  log_level;
-  struct nfc_user_defined_device user_defined_devices[MAX_USER_DEFINED_DEVICES];
+  struct nfc_user_defined_device user_defined_devices; //[MAX_USER_DEFINED_DEVICES];
   unsigned int user_defined_device_count;
 };
 
@@ -195,10 +191,8 @@ struct nfc_device {
   void *driver_data;
   void *chip_data;
 
-  /** Device name string, including device wrapper firmware */
-  char    name[DEVICE_NAME_LENGTH];
   /** Device connection string */
-  nfc_connstring connstring;
+  // nfc_connstring connstring;
   /** Is the CRC automaticly added, checked and removed from the frames */
   bool    bCrc;
   /** Does the chip handle parity bits, all parities are handled as data */
@@ -214,15 +208,11 @@ struct nfc_device {
   int     last_error;
 };
 
-nfc_device *nfc_device_new(const nfc_context *context, const nfc_connstring connstring);
+nfc_device *nfc_device_new(const nfc_context *context);
 void        nfc_device_free(nfc_device *dev);
 
 void string_as_boolean(const char *s, bool *value);
-
 void iso14443_cascade_uid(const uint8_t abtUID[], const size_t szUID, uint8_t *pbtCascadedUID, size_t *pszCascadedUID);
-
 void prepare_initiator_data(const nfc_modulation nm, uint8_t **ppbtInitiatorData, size_t *pszInitiatorData);
-
-int connstring_decode(const nfc_connstring connstring, const char *driver_name, const char *bus_name, char **pparam1, char **pparam2);
 
 #endif // __NFC_INTERNAL_H__

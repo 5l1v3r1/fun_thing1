@@ -34,6 +34,5 @@
 
 #include <nfc/nfc-types.h>
 
-extern const struct nfc_driver_list *nfc_drivers;
 
 #endif // __NFC_DRIVERS_H__

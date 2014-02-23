@@ -87,10 +87,10 @@ extern  "C" {
 /* Library initialization/deinitialization */
 NFC_EXPORT void nfc_init(nfc_context **context) ATTRIBUTE_NONNULL(1);
 NFC_EXPORT void nfc_exit(nfc_context *context) ATTRIBUTE_NONNULL(1);
-NFC_EXPORT int nfc_register_driver(const nfc_driver *driver);
+NFC_EXPORT int nfc_register_driver(nfc_driver *driver);
 
 /* NFC Device/Hardware manipulation */
-NFC_EXPORT nfc_device *nfc_open(nfc_context *context, const nfc_connstring connstring) ATTRIBUTE_NONNULL(1);
+NFC_EXPORT nfc_device *nfc_open(nfc_context *context) ATTRIBUTE_NONNULL(1);
 NFC_EXPORT void nfc_close(nfc_device *pnd);
 NFC_EXPORT int nfc_abort_command(nfc_device *pnd);
 NFC_EXPORT size_t nfc_list_devices(nfc_context *context, nfc_connstring connstrings[], size_t connstrings_len) ATTRIBUTE_NONNULL(1);
@@ -126,7 +126,6 @@ NFC_EXPORT int nfc_device_get_last_error(const nfc_device *pnd);
 
 /* Special data accessors */
 NFC_EXPORT const char *nfc_device_get_name(nfc_device *pnd);
-NFC_EXPORT const char *nfc_device_get_connstring(nfc_device *pnd);
 NFC_EXPORT int nfc_device_get_supported_modulation(nfc_device *pnd, const nfc_mode mode,  const nfc_modulation_type **const supported_mt);
 NFC_EXPORT int nfc_device_get_supported_baud_rate(nfc_device *pnd, const nfc_modulation_type nmt, const nfc_baud_rate **const supported_br);
 

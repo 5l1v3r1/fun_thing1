@@ -78,14 +78,6 @@ nfc_context_new(void)
     return NULL;
   }
 
-  // Set default context values
-#ifndef STM32F4XX   
-  res->allow_autoscan = true;
-#else
-  res->allow_autoscan = false;
-#endif
-  
-  res->allow_intrusive_scan = false;
 #ifdef DEBUG
   res->log_level = 3;
 #else
@@ -93,58 +85,18 @@ nfc_context_new(void)
 #endif
 
   // Clear user defined devices array
-  for (int i = 0; i < MAX_USER_DEFINED_DEVICES; i++) {
-    strcpy(res->user_defined_devices[i].name, "");
-    strcpy(res->user_defined_devices[i].connstring, "");
-    res->user_defined_devices[i].optional = false;
-  }
-  res->user_defined_device_count = 0;
+    strcpy(res->user_defined_devices.name, "");
+    strcpy(res->user_defined_devices.connstring, "");
+    res->user_defined_devices.optional = 0;
 
-#ifdef ENVVARS
-  // Load user defined device from environment variable at first
-  char *envvar = getenv("LIBNFC_DEFAULT_DEVICE");
-  if (envvar) {
-    strcpy(res->user_defined_devices[0].name, "user defined default device");
-    strcpy(res->user_defined_devices[0].connstring, envvar);
-    res->user_defined_device_count++;
-  }
+    res->user_defined_device_count = 0;
 
-#endif // ENVVARS
 
-#ifdef CONFFILES
-  // Load options from configuration file (ie. /etc/nfc/libnfc.conf)
-  conf_load(res);
-#endif // CONFFILES
-
-#ifdef ENVVARS
-  // Environment variables
-  // Load "intrusive scan" option
-  envvar = getenv("LIBNFC_INTRUSIVE_SCAN");
-  string_as_boolean(envvar, &(res->allow_intrusive_scan));
-
-  // log level
-  envvar = getenv("LIBNFC_LOG_LEVEL");
-  if (envvar) {
-    res->log_level = atoi(envvar);
-  }
-#endif // ENVVARS
 #ifdef LOG
   // Initialize log before use it...
   log_init(res);
 
-  // Debug context state
-#if defined DEBUG
-  log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_NONE,  "log_level is set to %"PRIu32, res->log_level);
-#else
-  log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG,  "log_level is set to %"PRIu32, res->log_level);
-#endif
-  log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "allow_autoscan is set to %s", (res->allow_autoscan) ? "true" : "false");
-  log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "allow_intrusive_scan is set to %s", (res->allow_intrusive_scan) ? "true" : "false");
-
   log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "%d device(s) defined by user", res->user_defined_device_count);
-  for (uint32_t i = 0; i < res->user_defined_device_count; i++) {
-    log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "  #%d name: \"%s\", connstring: \"%s\"", i, res->user_defined_devices[i].name, res->user_defined_devices[i].connstring);
-  }
 #endif
   return res;
 }
@@ -201,66 +153,4 @@ prepare_initiator_data(const nfc_modulation nm, uint8_t **ppbtInitiatorData, siz
   }
 }
 
-int
-connstring_decode(const nfc_connstring connstring, const char *driver_name, const char *bus_name, char **pparam1, char **pparam2)
-{
-  if (driver_name == NULL) {
-    driver_name = "";
-  }
-  if (bus_name == NULL) {
-    bus_name = "";
-  }
-  int n = strlen(connstring) + 1;
-  char *param0 = malloc(n);
-  if (param0 == NULL) {
-    perror("malloc");
-    return 0;
-  }
-  char *param1 = malloc(n);
-  if (param1 == NULL) {
-    perror("malloc");
-    free(param0);
-    return 0;
-  }
-  char *param2    = malloc(n);
-  if (param2 == NULL) {
-    perror("malloc");
-    free(param0);
-    free(param1);
-    return 0;
-  }
-
-  char format[32];
-  snprintf(format, sizeof(format), "%%%i[^:]:%%%i[^:]:%%%i[^:]", n - 1, n - 1, n - 1);
-  int res = sscanf(connstring, format, param0, param1, param2);
-
-  if (res < 1 || ((0 != strcmp(param0, driver_name)) &&
-                  (bus_name != NULL) &&
-                  (0 != strcmp(param0, bus_name)))) {
-    // Driver name does not match.
-    res = 0;
-  }
-  if (pparam1 != NULL) {
-    if (res < 2) {
-      free(param1);
-      *pparam1 = NULL;
-    } else {
-      *pparam1 = param1;
-    }
-  } else {
-    free(param1);
-  }
-  if (pparam2 != NULL) {
-    if (res < 3) {
-      free(param2);
-      *pparam2 = NULL;
-    } else {
-      *pparam2 = param2;
-    }
-  } else {
-    free(param2);
-  }
-  free(param0);
-  return res;
-}
 

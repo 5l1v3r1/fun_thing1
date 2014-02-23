@@ -156,12 +156,17 @@ pn53x_transceive(struct nfc_device *pnd, const uint8_t *pbtTx, const size_t szTx
 {
   bool mi = false;
   int res = 0;
+
+  vDebugString("entered pn53x_transceive()\n");
+
   if (CHIP_DATA(pnd)->wb_trigged) {
+	  vDebugString("\tCHIP_DATA(pnd)->wb_trigged == TRUE\n");
     if ((res = pn53x_writeback_register(pnd)) < 0) {
       return res;
     }
   }
 
+/*
   PNCMD_TRACE(pbtTx[0]);
   if (timeout > 0) {
     log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "Timeout value: %d", timeout);
@@ -172,6 +177,7 @@ pn53x_transceive(struct nfc_device *pnd, const uint8_t *pbtTx, const size_t szTx
   } else {
     log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_ERROR, "Invalid timeout value: %d", timeout);
   }
+*/
 
   uint8_t  abtRx[PN53x_EXTENDED_FRAME__DATA_MAX_LEN];
   size_t  szRx = sizeof(abtRx);
@@ -1015,6 +1021,8 @@ pn53x_check_communication(struct nfc_device *pnd)
   uint8_t abtRx[sizeof(abtExpectedRx)];
   size_t szRx = sizeof(abtRx);
   int res = 0;
+
+  vDebugString("entered pn53x_check_communication()\n");
 
   if ((res = pn53x_transceive(pnd, abtCmd, sizeof(abtCmd), abtRx, szRx, 500)) < 0)
     return res;

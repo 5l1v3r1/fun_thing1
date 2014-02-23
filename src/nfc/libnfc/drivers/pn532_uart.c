@@ -44,16 +44,11 @@
 
 #include "drivers.h"
 #include "nfc-internal.h"
-#ifndef STM32F40_41xxx
-#include "chips/pn53x.h"
-#else
+
 #include "pn53x.h"
-#endif
-#ifndef STM32F40_41xxx
-#include "chips/pn53x-internal.h"
-#else
+#include "stm32f4xx.h"
 #include "pn53x-internal.h"
-#endif
+
 #include "uart.h"
 
 #define PN532_UART_DEFAULT_SPEED 115200
@@ -65,7 +60,7 @@
 // Internal data structs
 const struct pn53x_io pn532_uart_io;
 struct pn532_uart_data {
-  serial_port port;
+  USART_TypeDef* port;
   bool abort_flag;
 };
 
@@ -75,88 +70,12 @@ int     pn532_uart_wakeup(nfc_device *pnd);
 
 #define DRIVER_DATA(pnd) ((struct pn532_uart_data*)(pnd->driver_data))
 
-static size_t
-pn532_uart_scan(const nfc_context *context, nfc_connstring connstrings[], const size_t connstrings_len)
-{
-  size_t device_found = 0;
-  serial_port sp;
-  char **acPorts = uart_list_ports();
-  const char *acPort;
-  int     iDevice = 0;
-
-  while ((acPort = acPorts[iDevice++])) {
-    sp = uart_open(acPort);
-    log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "Trying to find PN532 device on serial port: %s at %d bauds.", acPort, PN532_UART_DEFAULT_SPEED);
-
-    if ((sp != INVALID_SERIAL_PORT) && (sp != CLAIMED_SERIAL_PORT)) {
-      // We need to flush input to be sure first reply does not comes from older byte transceive
-      uart_flush_input(sp);
-      // Serial port claimed but we need to check if a PN532_UART is opened.
-      uart_set_speed(sp, PN532_UART_DEFAULT_SPEED);
-
-      nfc_connstring connstring;
-      snprintf(connstring, sizeof(nfc_connstring), "%s:%s:%"PRIu32, PN532_UART_DRIVER_NAME, acPort, PN532_UART_DEFAULT_SPEED);
-      nfc_device *pnd = nfc_device_new(context, connstring);
-      if (!pnd) {
-        perror("malloc");
-        uart_close(sp);
-        return 0;
-      }
-      pnd->driver = &pn532_uart_driver;
-      pnd->driver_data = malloc(sizeof(struct pn532_uart_data));
-      if (!pnd->driver_data) {
-        perror("malloc");
-        uart_close(sp);
-        nfc_device_free(pnd);
-        return 0;
-      }
-      DRIVER_DATA(pnd)->port = sp;
-
-      // Alloc and init chip's data
-      if (pn53x_data_new(pnd, &pn532_uart_io) == NULL) {
-        perror("malloc");
-        uart_close(DRIVER_DATA(pnd)->port);
-        nfc_device_free(pnd);
-        return 0;
-      }
-      // SAMConfiguration command if needed to wakeup the chip and pn53x_SAMConfiguration check if the chip is a PN532
-      CHIP_DATA(pnd)->type = PN532;
-      // This device starts in LowVBat power mode
-      CHIP_DATA(pnd)->power_mode = LOWVBAT;
-      DRIVER_DATA(pnd)->abort_flag = false;
-
-      // Check communication using "Diagnose" command, with "Communication test" (0x00)
-      int res = pn53x_check_communication(pnd);
-      uart_close(DRIVER_DATA(pnd)->port);
-      pn53x_data_free(pnd);
-      nfc_device_free(pnd);
-      if (res < 0) {
-        continue;
-      }
-
-      memcpy(connstrings[device_found], connstring, sizeof(nfc_connstring));
-      device_found++;
-
-      // Test if we reach the maximum "wanted" devices
-      if (device_found >= connstrings_len)
-        break;
-    }
-  }
-  iDevice = 0;
-  while ((acPort = acPorts[iDevice++])) {
-    free((void *)acPort);
-  }
-  free(acPorts);
-  return device_found;
-}
-
 struct pn532_uart_descriptor {
   char *port;
   uint32_t speed;
 };
 
-static void
-pn532_uart_close(nfc_device *pnd)
+static void pn532_uart_close(nfc_device *pnd)
 {
   pn53x_idle(pnd);
 
@@ -167,65 +86,33 @@ pn532_uart_close(nfc_device *pnd)
   nfc_device_free(pnd);
 }
 
-static nfc_device *
-pn532_uart_open(const nfc_context *context, const nfc_connstring connstring)
+static nfc_device* pn532_uart_open(const nfc_context *context)
 {
-  struct pn532_uart_descriptor ndd;
   char *speed_s;
-  int connstring_decode_level = connstring_decode(connstring, PN532_UART_DRIVER_NAME, NULL, &ndd.port, &speed_s);
-  if (connstring_decode_level == 3) {
-    ndd.speed = 0;
-    if (sscanf(speed_s, "%10"PRIu32, &ndd.speed) != 1) {
-      // speed_s is not a number
-      free(ndd.port);
-      free(speed_s);
-      return NULL;
-    }
-    free(speed_s);
-  }
-  if (connstring_decode_level < 2) {
-    return NULL;
-  }
-  if (connstring_decode_level < 3) {
-    ndd.speed = PN532_UART_DEFAULT_SPEED;
-  }
-  serial_port sp;
   nfc_device *pnd = NULL;
 
-  log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "Attempt to open: %s at %d bauds.", ndd.port, ndd.speed);
-  sp = uart_open(ndd.port);
+  uart_open(USART2);
 
-  if (sp == INVALID_SERIAL_PORT)
-    log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_ERROR, "Invalid serial port: %s", ndd.port);
-  if (sp == CLAIMED_SERIAL_PORT)
-    log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_ERROR, "Serial port already claimed: %s", ndd.port);
-  if ((sp == CLAIMED_SERIAL_PORT) || (sp == INVALID_SERIAL_PORT)) {
-    free(ndd.port);
-    return NULL;
-  }
   // We need to flush input to be sure first reply does not comes from older byte transceive
-  uart_flush_input(sp);
-  uart_set_speed(sp, ndd.speed);
+  uart_flush_input(USART2);
+  uart_set_speed(USART2, 115200/*ndd.speed*/);
 
   // We have a connection
-  pnd = nfc_device_new(context, connstring);
+  pnd = nfc_device_new(context);
   if (!pnd) {
     perror("malloc");
-    free(ndd.port);
-    uart_close(sp);
+    uart_close(USART2);
     return NULL;
   }
-  snprintf(pnd->name, sizeof(pnd->name), "%s:%s", PN532_UART_DRIVER_NAME, ndd.port);
-  free(ndd.port);
 
   pnd->driver_data = malloc(sizeof(struct pn532_uart_data));
   if (!pnd->driver_data) {
     perror("malloc");
-    uart_close(sp);
+    uart_close(USART2);
     nfc_device_free(pnd);
     return NULL;
   }
-  DRIVER_DATA(pnd)->port = sp;
+  DRIVER_DATA(pnd)->port = USART2;
 
   // Alloc and init chip's data
   if (pn53x_data_new(pnd, &pn532_uart_io) == NULL) {
@@ -256,8 +143,49 @@ pn532_uart_open(const nfc_context *context, const nfc_connstring connstring)
   return pnd;
 }
 
-int
-pn532_uart_wakeup(nfc_device *pnd)
+static int pn532_uart_abort_command(nfc_device *pnd)
+{
+  if (pnd) {
+    DRIVER_DATA(pnd)->abort_flag = true;
+  }
+  return NFC_SUCCESS;
+}
+
+struct nfc_driver pn532_uart_driver = {
+  .open                             = pn532_uart_open,
+  .close                            = pn532_uart_close,
+  .strerror                         = pn53x_strerror,
+
+  .initiator_init                   = pn53x_initiator_init,
+  .initiator_init_secure_element    = pn532_initiator_init_secure_element,
+  .initiator_select_passive_target  = pn53x_initiator_select_passive_target,
+  .initiator_poll_target            = pn53x_initiator_poll_target,
+  .initiator_select_dep_target      = pn53x_initiator_select_dep_target,
+  .initiator_deselect_target        = pn53x_initiator_deselect_target,
+  .initiator_transceive_bytes       = pn53x_initiator_transceive_bytes,
+  .initiator_transceive_bits        = pn53x_initiator_transceive_bits,
+  .initiator_transceive_bytes_timed = pn53x_initiator_transceive_bytes_timed,
+  .initiator_transceive_bits_timed  = pn53x_initiator_transceive_bits_timed,
+  .initiator_target_is_present      = pn53x_initiator_target_is_present,
+
+  .target_init           = pn53x_target_init,
+  .target_send_bytes     = pn53x_target_send_bytes,
+  .target_receive_bytes  = pn53x_target_receive_bytes,
+  .target_send_bits      = pn53x_target_send_bits,
+  .target_receive_bits   = pn53x_target_receive_bits,
+
+  .device_set_property_bool     = pn53x_set_property_bool,
+  .device_set_property_int      = pn53x_set_property_int,
+  .get_supported_modulation     = pn53x_get_supported_modulation,
+  .get_supported_baud_rate      = pn53x_get_supported_baud_rate,
+  .device_get_information_about = pn53x_get_information_about,
+
+  .abort_command  = pn532_uart_abort_command,
+  .idle           = pn53x_idle,
+  .powerdown      = pn53x_PowerDown,
+};
+
+int pn532_uart_wakeup(nfc_device *pnd)
 {
   /* High Speed Unit (HSU) wake up consist to send 0x55 and wait a "long" delay for PN532 being wakeup. */
   const uint8_t pn532_wakeup_preamble[] = { 0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -464,54 +392,10 @@ pn532_uart_ack(nfc_device *pnd)
   return (uart_send(DRIVER_DATA(pnd)->port, pn53x_ack_frame, sizeof(pn53x_ack_frame),  0));
 }
 
-static int
-pn532_uart_abort_command(nfc_device *pnd)
-{
-  if (pnd) {
-    DRIVER_DATA(pnd)->abort_flag = true;
-  }
-  return NFC_SUCCESS;
-}
-
 const struct pn53x_io pn532_uart_io = {
   .send       = pn532_uart_send,
   .receive    = pn532_uart_receive,
 };
 
-const struct nfc_driver pn532_uart_driver = {
-  .name                             = PN532_UART_DRIVER_NAME,
-  .scan_type                        = INTRUSIVE,
-  .scan                             = pn532_uart_scan,
-  .open                             = pn532_uart_open,
-  .close                            = pn532_uart_close,
-  .strerror                         = pn53x_strerror,
 
-  .initiator_init                   = pn53x_initiator_init,
-  .initiator_init_secure_element    = pn532_initiator_init_secure_element,
-  .initiator_select_passive_target  = pn53x_initiator_select_passive_target,
-  .initiator_poll_target            = pn53x_initiator_poll_target,
-  .initiator_select_dep_target      = pn53x_initiator_select_dep_target,
-  .initiator_deselect_target        = pn53x_initiator_deselect_target,
-  .initiator_transceive_bytes       = pn53x_initiator_transceive_bytes,
-  .initiator_transceive_bits        = pn53x_initiator_transceive_bits,
-  .initiator_transceive_bytes_timed = pn53x_initiator_transceive_bytes_timed,
-  .initiator_transceive_bits_timed  = pn53x_initiator_transceive_bits_timed,
-  .initiator_target_is_present      = pn53x_initiator_target_is_present,
-
-  .target_init           = pn53x_target_init,
-  .target_send_bytes     = pn53x_target_send_bytes,
-  .target_receive_bytes  = pn53x_target_receive_bytes,
-  .target_send_bits      = pn53x_target_send_bits,
-  .target_receive_bits   = pn53x_target_receive_bits,
-
-  .device_set_property_bool     = pn53x_set_property_bool,
-  .device_set_property_int      = pn53x_set_property_int,
-  .get_supported_modulation     = pn53x_get_supported_modulation,
-  .get_supported_baud_rate      = pn53x_get_supported_baud_rate,
-  .device_get_information_about = pn53x_get_information_about,
-
-  .abort_command  = pn532_uart_abort_command,
-  .idle           = pn53x_idle,
-  .powerdown      = pn53x_PowerDown,
-};
 

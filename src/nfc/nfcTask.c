@@ -77,11 +77,11 @@ void vNFCTxTask(void* pvParameters ) {
 	TQ* ptq = &tq;
 	portBASE_TYPE xStatus;
 
-	vDebugString((uint8_t*) "NFC TX task started\r\n");
+	vDebugString((uint8_t*) "NFC TX task started");
 
 	for(;;) {
 
-		if(xSemaphoreTake(xSemaphoreTx,(portTickType)portMAX_DELAY) != pdTRUE){
+		if(xSemaphoreTake(xSemaphoreTx,(portTickType)50) != pdTRUE){
 			xStatus = xQueueReceive( xQueueTx, &ptq, (portTickType)portMAX_DELAY);
 			USARTx_Send(DMA1_Stream3,tq.data,tq.length*sizeof(uint8_t));
 		}
@@ -93,14 +93,18 @@ void vNFCTask(void *vParameter){
 	nfc_uart3_config();
 	DMA_usart3_Configuration();
 
+	vDebugString((uint8_t*)"Test1");
 
+	/*
 	nfc_init(&context);
-	pnd = nfc_open(context, NULL);
+
+	pnd = nfc_open(context);
 
 
 	nfc_close(pnd);
-	nfc_exit(context);
 
+	nfc_exit(context);
+*/
 	for(;;){
 
 			vTaskDelay(1000);
