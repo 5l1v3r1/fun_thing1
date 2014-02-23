@@ -88,6 +88,7 @@
 
 #include "pn532_uart.h"
 
+
 #include "debug.h"
 
 #define LOG_CATEGORY "libnfc.general"
