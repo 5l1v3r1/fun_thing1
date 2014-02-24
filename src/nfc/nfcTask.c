@@ -71,6 +71,11 @@ void NFC_Send(uint8_t* tx_data,uint16_t len)
 	while(xQueueSend(xQueueTx,ptq,(portTickType)0)==pdFALSE);
 }
 
+portBASE_TYPE NFC_ReadByte(USART_TypeDef* USARTx, uint8_t* rcvdByte,portTickType timeout){
+	return xQueueReceive(xQueueRx,rcvdByte,timeout);
+}
+
+
 TQ tq;
 
 void vNFCTxTask(void* pvParameters ) {
@@ -93,9 +98,9 @@ void vNFCTask(void *vParameter){
 	nfc_uart3_config();
 	DMA_usart3_Configuration();
 
-	vDebugString((uint8_t*)"Test1");
+	vDebugString((uint8_t*)"vNFCTask started");
 
-	/*
+
 	nfc_init(&context);
 
 	pnd = nfc_open(context);
@@ -104,7 +109,7 @@ void vNFCTask(void *vParameter){
 	nfc_close(pnd);
 
 	nfc_exit(context);
-*/
+
 	for(;;){
 
 			vTaskDelay(1000);
@@ -147,6 +152,19 @@ void nfc_uart3_config(void){
 }
 
 static uint8_t usart3_rx_fifo_single_buffer;
+
+uint8_t usart3_readSingleByte(uint8_t* ch,portTickType timeout){
+	uint8_t tmp;
+	portBASE_TYPE xStatus;
+
+	if(xQueueReceive( xQueueRx, &tmp, timeout)){
+
+		*ch = tmp;
+		return 0;
+	}
+
+	return 1; // timeout
+}
 
 void DMA_usart3_Configuration(void)
 {

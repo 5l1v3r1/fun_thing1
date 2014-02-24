@@ -157,7 +157,7 @@ pn53x_transceive(struct nfc_device *pnd, const uint8_t *pbtTx, const size_t szTx
   bool mi = false;
   int res = 0;
 
-  vDebugString("entered pn53x_transceive()\n");
+  vDebugString((uint8_t*)"entered pn53x_transceive()");
 
   if (CHIP_DATA(pnd)->wb_trigged) {
 	  vDebugString("\tCHIP_DATA(pnd)->wb_trigged == TRUE\n");

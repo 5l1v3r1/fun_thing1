@@ -100,14 +100,14 @@ static nfc_device* pn532_uart_open(const nfc_context *context)
   // We have a connection
   pnd = nfc_device_new(context);
   if (!pnd) {
-    perror("malloc");
+    vDebugString((uint8_t*)"malloc error");
     uart_close(USART2);
     return NULL;
   }
 
   pnd->driver_data = malloc(sizeof(struct pn532_uart_data));
   if (!pnd->driver_data) {
-    perror("malloc");
+	  vDebugString((uint8_t*)"malloc error");
     uart_close(USART2);
     nfc_device_free(pnd);
     return NULL;
@@ -116,7 +116,7 @@ static nfc_device* pn532_uart_open(const nfc_context *context)
 
   // Alloc and init chip's data
   if (pn53x_data_new(pnd, &pn532_uart_io) == NULL) {
-    perror("malloc");
+	  vDebugString((uint8_t*)"malloc error");
     uart_close(DRIVER_DATA(pnd)->port);
     nfc_device_free(pnd);
     return NULL;
@@ -256,8 +256,7 @@ pn532_uart_send(nfc_device *pnd, const uint8_t *pbtData, const size_t szData, in
   return NFC_SUCCESS;
 }
 
-static int
-pn532_uart_receive(nfc_device *pnd, uint8_t *pbtData, const size_t szDataLen, int timeout)
+static int pn532_uart_receive(nfc_device *pnd, uint8_t *pbtData, const size_t szDataLen, int timeout)
 {
   uint8_t  abtRxBuf[5];
   size_t len;

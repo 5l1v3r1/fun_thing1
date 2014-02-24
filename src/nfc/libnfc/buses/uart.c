@@ -138,6 +138,7 @@ uart_close(USART_TypeDef* USARTx)
   uart_close_ext(USARTx, true);
 }
 
+extern portBASE_TYPE NFC_ReadByte(USART_TypeDef* USARTx, uint8_t* rcvdByte,portTickType timeout);
 /**
  * @brief Receive data from UART and copy data to \a pbtRx
  *
@@ -145,14 +146,14 @@ uart_close(USART_TypeDef* USARTx)
  */
 int uart_receive(USART_TypeDef* USARTx, uint8_t *pbtRx, const size_t szRx, void *abort_p, int timeout)
 {
-  int iAbortFd = abort_p ? *((int *)abort_p) : 0;
-  int received_bytes_count = 0;
-  int available_bytes_count = 0;
-  const int expected_bytes_count = (int)szRx;
-  int res;
-  fd_set rfds;
+  int res = NFC_SUCCESS;
   
-  LOG_HEX(LOG_GROUP, "RX", pbtRx, szRx);
+  for(int i = 0;i<szRx;i++){
+	  if((res = NFC_ReadByte(USARTx,&pbtRx[i],timeout)) < 0)
+	  {
+		  return res;
+	  }
+  }
 
   return NFC_SUCCESS;
 }
@@ -166,6 +167,7 @@ int uart_send(USART_TypeDef* USARTx, const uint8_t *pbtTx, const size_t szTx, in
 {
   (void) timeout;
   LOG_HEX(LOG_GROUP, "TX", pbtTx, szTx);
+
 #ifdef STM32F40_41xxx
 
 #else
