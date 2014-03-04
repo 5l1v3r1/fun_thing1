@@ -7,6 +7,8 @@
 
 #include <stdarg.h>
 #include <ctype.h>
+#include <string.h>
+#include <assert.h>
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -24,11 +26,9 @@
 #include "nfc_task.h"
 
 #define RX3_QUEUE_SIZE 32
-#define TX3_QUEUE_SIZE 4
+#define TX3_QUEUE_SIZE 3
 
 #define _TESTING_
-
-
 
 static void nfc_uart3_config(void);
 static void DMA_usart3_Configuration(void);
@@ -38,24 +38,31 @@ static void nfc_exti0_config(void);
 static void vNFCTxTask(void* pvParameters );
 static void vNFCTask(void *vParameter);
 
+portBASE_TYPE usart3_readSingleByte(uint8_t* ch,portTickType timeout);
+
 static xSemaphoreHandle xSemaphoreTx;
-static xQueueHandle xQueueRx;
-static xQueueHandle xQueueTx;
+xQueueHandle xQueueNFCRx;
+static xQueueHandle xQueueNFCTx;
 
 static nfc_device *pnd = NULL;
 static nfc_context *context;
+
+extern xQueueHandle rxq;
+
+void initNFC(void){
+
+	xSemaphoreTx = xSemaphoreCreateBinary();
+	xQueueNFCRx = xQueueCreate( RX3_QUEUE_SIZE, sizeof(uint8_t));
+	xQueueNFCTx = xQueueCreate( TX3_QUEUE_SIZE, sizeof(TQ));
+	rxq = xQueueCreate(10,sizeof(char));
+}
 
 void createNFCTask(void){
 
 	// nfc_exti0_config(); //IRQ from PN532
 
-	xSemaphoreTx = xSemaphoreCreateBinary();
-	xQueueRx = xQueueCreate( RX3_QUEUE_SIZE, sizeof(uint8_t));
-	xQueueTx = xQueueCreate( TX3_QUEUE_SIZE, sizeof(TQ));
-
 	xTaskCreate( vNFCTxTask, ( signed char * ) "nfcTx", configMINIMAL_STACK_SIZE*2, ( void * ) NULL, (tskIDLE_PRIORITY+3)| portPRIVILEGE_BIT, NULL );
-	xTaskCreate( vNFCTask,   ( signed char * ) "NFC",   configMINIMAL_STACK_SIZE*2, ( void * ) NULL, (tskIDLE_PRIORITY+2)| portPRIVILEGE_BIT, NULL );
-
+	xTaskCreate( vNFCTask,   ( signed char * ) "NFC",   configMINIMAL_STACK_SIZE*10, ( void * ) NULL, (tskIDLE_PRIORITY+2)| portPRIVILEGE_BIT, NULL );
 }
 
 void NFC_Send(uint8_t* tx_data,uint16_t len)
@@ -63,31 +70,29 @@ void NFC_Send(uint8_t* tx_data,uint16_t len)
 	TQ tq1;
 	TQ* ptq = &tq1;
 
-	assert(xQueueTx);
+	assert(xQueueNFCTx);
 
 	memcpy(tq1.data,tx_data,len);
 	tq1.length = len;
 
-	while(xQueueSend(xQueueTx,ptq,(portTickType)0)==pdFALSE);
+	while(xQueueSend(xQueueNFCTx,ptq,(portTickType)0)==pdFALSE);
 }
 
 portBASE_TYPE NFC_ReadByte(USART_TypeDef* USARTx, uint8_t* rcvdByte,portTickType timeout){
-	return xQueueReceive(xQueueRx,rcvdByte,timeout);
+	// return xQueueReceive(xQueueNFCRx,rcvdByte,timeout);
+	return usart3_readSingleByte(rcvdByte,timeout);
 }
 
-
-TQ tq;
-
 void vNFCTxTask(void* pvParameters ) {
-	TQ* ptq = &tq;
+	TQ tq;
 	portBASE_TYPE xStatus;
 
-	vDebugString((uint8_t*) "NFC TX task started");
+	vDebugString("NFC TX task started");
 
 	for(;;) {
 
 		if(xSemaphoreTake(xSemaphoreTx,(portTickType)50) != pdTRUE){
-			xStatus = xQueueReceive( xQueueTx, &ptq, (portTickType)portMAX_DELAY);
+			xStatus = xQueueReceive( xQueueNFCTx, &tq, (portTickType)portMAX_DELAY);
 			USARTx_Send(DMA1_Stream3,tq.data,tq.length*sizeof(uint8_t));
 		}
 	}
@@ -98,7 +103,7 @@ void vNFCTask(void *vParameter){
 	nfc_uart3_config();
 	DMA_usart3_Configuration();
 
-	vDebugString((uint8_t*)"vNFCTask started");
+	vDebugString("vNFCTask started");
 
 
 	nfc_init(&context);
@@ -152,18 +157,14 @@ void nfc_uart3_config(void){
 }
 
 static uint8_t usart3_rx_fifo_single_buffer;
+uint8_t ch1;
 
-uint8_t usart3_readSingleByte(uint8_t* ch,portTickType timeout){
-	uint8_t tmp;
-	portBASE_TYPE xStatus;
+portBASE_TYPE usart3_readSingleByte(uint8_t* ch,portTickType timeout){
+	  if(xQueueReceive( xQueueNFCRx, ch , timeout) == pdPASS){
+		  return pdPASS;
+	  }
 
-	if(xQueueReceive( xQueueRx, &tmp, timeout)){
-
-		*ch = tmp;
-		return 0;
-	}
-
-	return 1; // timeout
+	  return pdFAIL;
 }
 
 void DMA_usart3_Configuration(void)
@@ -236,9 +237,8 @@ void DMA1_Stream3_IRQHandler(void){ // USART TX
     if(DMA_GetITStatus(DMA1_Stream3, DMA_IT_TCIF3))
     {
         DMA_ClearITPendingBit(DMA1_Stream3,DMA_IT_TCIF3);
+        xSemaphoreGiveFromISR(xSemaphoreTx,&xHigherPriorityTaskWoken);
     }
-
-    xSemaphoreGiveFromISR(xSemaphoreTx,&xHigherPriorityTaskWoken);
 }
 
 void DMA1_Stream1_IRQHandler(void){ // USART RX
@@ -248,9 +248,8 @@ void DMA1_Stream1_IRQHandler(void){ // USART RX
     if(DMA_GetITStatus(DMA1_Stream1, DMA_IT_TCIF1))
     {
         DMA_ClearITPendingBit(DMA1_Stream1,DMA_IT_TCIF1);
+        xQueueSendFromISR(xQueueNFCRx,&usart3_rx_fifo_single_buffer,&xHigherPriorityTaskWoken);
     }
-
-    xQueueSendFromISR(xQueueRx,&usart3_rx_fifo_single_buffer,&xHigherPriorityTaskWoken);
 }
 
 void nfc_exti0_config(void){

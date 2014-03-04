@@ -73,6 +73,9 @@ log_exit(void)
 void
 log_put(const uint8_t group, const char *category, const uint8_t priority, const char *format, ...)
 {
+
+	return;
+
   char *env_log_level = NULL;
 #ifdef ENVVARS
   env_log_level = getenv("LIBNFC_LOG_LEVEL");

@@ -206,6 +206,8 @@ static xSemaphoreHandle xTestSemaphore = NULL;
 
 
 /*-----------------------------------------------------------*/
+extern void initNFC(void);
+
 
 int main(void)
 {
@@ -218,6 +220,7 @@ int main(void)
 	//prvOptionallyCreateComprehensveTestApplication();
 
 	InitDebug();
+	initNFC();
 
 	createDebugTask();
 	createLEDTask();

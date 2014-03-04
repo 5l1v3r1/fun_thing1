@@ -6,7 +6,6 @@
  */
 #include <stdarg.h>
 #include <ctype.h>
-
 #include <stdio.h>
 #include <string.h>
 
@@ -14,18 +13,12 @@
 #include "task.h"
 #include "queue.h"
 #include "semphr.h"
-
 #include "stm32f4xx.h"
-
 #include "debug.h"
 #include "utils.h"
 
-// uint8_t TxBuffer[DEBUG_TxBufferLength];
-// uint8_t RxBuffer[DEBUG_RxBufferLength];
-
 static DMA_InitTypeDef  DMA_TX_InitStructure;
 static xSemaphoreHandle xSemaphore;
-
 
 // Total buffer size for all debug messages.
 #define DEBUG_QUEUE_SIZE	64
@@ -33,13 +26,12 @@ static xSemaphoreHandle xSemaphore;
 static xQueueHandle xDebugQueue;
 static xTaskHandle hDebugTask;
 
-
 void debug_uart2_config(void);
 void DMA_usart2_Configuration(void);
 
 void vNum2String( char *s, uint8_t *pPos, uint32_t u32Number, uint8_t u8Base);
 
-void InitDebug()
+void InitDebug(void)
 {
 	debug_uart2_config();
 	DMA_usart2_Configuration();
@@ -174,8 +166,6 @@ void DMA1_Stream6_IRQHandler(void){
         DMA_ClearITPendingBit(DMA1_Stream6,DMA_IT_TCIF6);
         xSemaphoreGiveFromISR(xSemaphore,&xHigherPriorityTaskWoken);
     }
-
-
 }
 
 /*
@@ -197,7 +187,6 @@ void DMA1_Stream5_IRQHandler(void)
 }
 */
 
-
 // ============================================================================
 void vDebugInitQueue( void ) {
 	xDebugQueue = xQueueCreate( DEBUG_QUEUE_SIZE, sizeof(DQ) );
@@ -206,20 +195,19 @@ void vDebugInitQueue( void ) {
 // ============================================================================
 void vDebugTask(void* pvParameters ) {
 	DQ dq;
-	DQ* pdq = &dq;
 	portBASE_TYPE xStatus;
 
-	vDebugString( (uint8_t*)"Debug task started");
+	vDebugString("Debug task started");
 
 	for(;;) {
-		xStatus = xQueueReceive( xDebugQueue, &pdq, (portTickType)portMAX_DELAY);
+		xStatus = xQueueReceive( xDebugQueue, &dq, (portTickType)portMAX_DELAY);
 		DEBUG_usart_send(dq.data,dq.length*sizeof(uint8_t));
 
 		if(xSemaphoreTake(xSemaphore,100) != pdTRUE){
 			vTaskDelay(100);
 		}
 		else{
-			vTaskDelay(2); // FIFO has 4 words
+			vTaskDelay(4); // FIFO has 4 words
 		}
 	}
 }
@@ -233,14 +221,12 @@ void createDebugTask(void){
 // is full then the rest of the string is ignored.
 // ToDo: Ignoring a full queue is not good.
 // ============================================================================
-void vDebugString( uint8_t* s ) {
+void vDebugString( char* s ) {
 	portBASE_TYPE xStatus;
-
 	DQ dq;
-	DQ* pdq = &dq;
 
 	dq.length = (uint16_t)strlen(s);
-	memcpy((uint8_t*)&dq.data,(uint8_t*)s,dq.length*sizeof(uint8_t)+sizeof(uint16_t));
+	memcpy((char*)&dq.data,(char*)s,dq.length*sizeof(char)+sizeof(uint16_t));
 
 	dq.data[dq.length++] = '\r';
 	dq.data[dq.length++] = '\n';
@@ -248,7 +234,7 @@ void vDebugString( uint8_t* s ) {
 	// Once we start coping a string into the queue we don't want to get
 	// interrupted.  The copy must be done quickly since interrupts are off!
 	taskENTER_CRITICAL();
-		xStatus = xQueueSendToBack( xDebugQueue, &pdq , 0 );
+		xStatus = xQueueSendToBack( xDebugQueue, &dq , 0 );
 	taskEXIT_CRITICAL();
 }
 
@@ -360,7 +346,7 @@ void vDebugPrintf(const char *fmt, ...) {
         }
     }
     sTmp[pos++] = 0;		// Mark the end of the string.
-    vDebugString( (uint8_t*)sTmp );	// Copy the string into the OS queue.
+    vDebugString( sTmp );	// Copy the string into the OS queue.
     return;
 }
 
@@ -392,6 +378,4 @@ void vNum2String( char *s, uint8_t *pPos, uint32_t u32Number, uint8_t u8Base) {
     }
     return;
 }
-
-
 

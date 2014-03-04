@@ -8,11 +8,15 @@
 #ifndef DEBUG_H_
 #define DEBUG_H_
 
+#include "stdint.h"
+
 void vDebugInitQueue( void );
-void vDebugString( uint8_t* s );
+void vDebugString(char* s );
 void vDebugPrintf(const char *fmt, ...);
 void vDebugPrintResetType( void );
 void createDebugTask(void);
+
+void InitDebug(void);
 
 #define DEBUG_TxBufferLength 64
 #define DEBUG_RxBufferLength 8

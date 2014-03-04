@@ -93,6 +93,8 @@ __attribute__((format(printf, 4, 5)))
  */
 #  ifdef LOG
 #    define LOG_HEX(group, pcTag, pbtData, szBytes) do { \
+		 } while (0);
+/*
     size_t	 __szPos; \
     char	 __acBuf[1024]; \
     size_t	 __szBuf = 0; \
@@ -110,6 +112,7 @@ __attribute__((format(printf, 4, 5)))
     } \
     log_put (group, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "%s", __acBuf); \
   } while (0);
+*/
 #  else
 #    define LOG_HEX(group, pcTag, pbtData, szBytes) do { \
     (void) group; \

@@ -53,6 +53,7 @@
 #ifdef STM32F40_41xxx
 #include "FreeRTOS.h"
 #include "stm32f4xx.h"
+#include "queue.h"
 #endif
 
 #include <errno.h>
@@ -144,14 +145,14 @@ extern portBASE_TYPE NFC_ReadByte(USART_TypeDef* USARTx, uint8_t* rcvdByte,portT
  *
  * @return 0 on success, otherwise driver error code
  */
+
 int uart_receive(USART_TypeDef* USARTx, uint8_t *pbtRx, const size_t szRx, void *abort_p, int timeout)
 {
-  int res = NFC_SUCCESS;
-  
+
   for(int i = 0;i<szRx;i++){
-	  if((res = NFC_ReadByte(USARTx,&pbtRx[i],timeout)) < 0)
+	  if(NFC_ReadByte(USARTx,&pbtRx[i],timeout) != pdPASS)
 	  {
-		  return res;
+		  return NFC_ETIMEOUT;
 	  }
   }
 

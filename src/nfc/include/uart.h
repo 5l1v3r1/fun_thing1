@@ -44,6 +44,8 @@
 
 #include <nfc/nfc-types.h>
 
+#include "debug.h"
+
 // Define shortcut to types to make code more readable
 
 #  define INVALID_SERIAL_PORT (void*)(~1)

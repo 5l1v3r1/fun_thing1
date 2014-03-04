@@ -49,6 +49,9 @@
 #include "stm32f4xx.h"
 #include "pn53x-internal.h"
 
+#include "FreeRTOS.h"
+#include "queue.h"
+
 #include "uart.h"
 
 #define PN532_UART_DEFAULT_SPEED 115200
@@ -100,14 +103,14 @@ static nfc_device* pn532_uart_open(const nfc_context *context)
   // We have a connection
   pnd = nfc_device_new(context);
   if (!pnd) {
-    vDebugString((uint8_t*)"malloc error");
+    vDebugString("malloc error");
     uart_close(USART2);
     return NULL;
   }
 
   pnd->driver_data = malloc(sizeof(struct pn532_uart_data));
   if (!pnd->driver_data) {
-	  vDebugString((uint8_t*)"malloc error");
+	  vDebugString("malloc error");
     uart_close(USART2);
     nfc_device_free(pnd);
     return NULL;
@@ -194,6 +197,8 @@ int pn532_uart_wakeup(nfc_device *pnd)
   return res;
 }
 
+uint8_t abtRxBuf[PN53x_ACK_FRAME__LEN];
+
 #define PN532_BUFFER_LEN (PN53x_EXTENDED_FRAME__DATA_MAX_LEN + PN53x_EXTENDED_FRAME__OVERHEAD)
 static int
 pn532_uart_send(nfc_device *pnd, const uint8_t *pbtData, const size_t szData, int timeout)
@@ -240,7 +245,7 @@ pn532_uart_send(nfc_device *pnd, const uint8_t *pbtData, const size_t szData, in
     return pnd->last_error;
   }
 
-  uint8_t abtRxBuf[PN53x_ACK_FRAME__LEN];
+
   res = uart_receive(DRIVER_DATA(pnd)->port, abtRxBuf, sizeof(abtRxBuf), 0, timeout);
   if (res != 0) {
     log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_DEBUG, "%s", "Unable to read ACK");
@@ -263,7 +268,6 @@ static int pn532_uart_receive(nfc_device *pnd, uint8_t *pbtData, const size_t sz
   void *abort_p = NULL;
 
   abort_p = (void *) & (DRIVER_DATA(pnd)->abort_flag);
-
 
   pnd->last_error = uart_receive(DRIVER_DATA(pnd)->port, abtRxBuf, 5, abort_p, timeout);
 

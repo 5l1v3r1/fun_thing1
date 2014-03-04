@@ -29,18 +29,22 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include "debug.h"
 
 void
 log_vput_internal(const char *format, va_list args)
 {
-  vfprintf(stderr, format, args);
+	char buffer[64];
+   vsnprintf(buffer,64,format,args);
+   vDebugString(buffer);
 }
 
 void
 log_put_internal(const char *format, ...)
 {
+  char buffer[64];
   va_list va;
   va_start(va, format);
-  vfprintf(stderr, format, va);
+  vsnprintf(buffer, 64 , format, va);
   va_end(va);
 }
