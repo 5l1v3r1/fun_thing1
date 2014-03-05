@@ -94,6 +94,7 @@ const char *serial_ports_device_radix[] = { "USART", NULL };
 #define UART_DATA( X ) ((struct serial_port_unix *) X)
 
 void uart_close_ext(USART_TypeDef* USARTx, const bool restore_termios);
+extern void NFC_Send(uint8_t* tx_data,uint16_t len);
 
 void uart_open(USART_TypeDef* USARTx)
 {
@@ -154,6 +155,8 @@ int uart_receive(USART_TypeDef* USARTx, uint8_t *pbtRx, const size_t szRx, void 
 	  {
 		  return NFC_ETIMEOUT;
 	  }
+
+	  vDebugPrintf("RX:%x",pbtRx[i]);
   }
 
   return NFC_SUCCESS;
@@ -166,10 +169,17 @@ int uart_receive(USART_TypeDef* USARTx, uint8_t *pbtRx, const size_t szRx, void 
  */
 int uart_send(USART_TypeDef* USARTx, const uint8_t *pbtTx, const size_t szTx, int timeout)
 {
+  int i;
   (void) timeout;
-  LOG_HEX(LOG_GROUP, "TX", pbtTx, szTx);
+  //LOG_HEX(LOG_GROUP, "TX", pbtTx, szTx);
 
 #ifdef STM32F40_41xxx
+
+  for(i=0;i<szTx;i++){
+	  vDebugPrintf("%x",pbtTx[i]);
+  }
+
+  NFC_Send(pbtTx,szTx);
 
 #else
   if ((int) szTx == write(UART_DATA(sp)->fd, pbtTx, szTx))
