@@ -25,7 +25,7 @@
 
 #include "nfc_task.h"
 
-#define RX3_QUEUE_SIZE 32
+#define RX3_QUEUE_SIZE 64
 #define TX3_QUEUE_SIZE 3
 
 #define _TESTING_
@@ -34,7 +34,6 @@ static void nfc_uart3_config(void);
 static void DMA_usart3_Configuration(void);
 void USARTx_Send(DMA_Stream_TypeDef* DMAy_Streamx, uint8_t* buf, int len);
 
-static void nfc_exti0_config(void);
 static void vNFCTxTask(void* pvParameters );
 static void vNFCTask(void *vParameter);
 
@@ -78,7 +77,6 @@ void NFC_Send(uint8_t* tx_data,uint16_t len)
 }
 
 portBASE_TYPE NFC_ReadByte(USART_TypeDef* USARTx, uint8_t* rcvdByte,portTickType timeout){
-	// return xQueueReceive(xQueueNFCRx,rcvdByte,timeout);
 	return usart3_readSingleByte(rcvdByte,timeout);
 }
 
@@ -86,6 +84,8 @@ void vNFCTxTask(void* pvParameters ) {
 	TQ tq;
 
 	vDebugString("NFC TX task started");
+
+	vTaskDelay(500);
 
 	for(;;) {
 
@@ -105,10 +105,20 @@ void vNFCTxTask(void* pvParameters ) {
 
 void vNFCTask(void *vParameter){
 
-	nfc_uart3_config();
-	DMA_usart3_Configuration();
+	uint8_t ch1 = 0x55;
+
+// BEGINNING OF TEST CODE
+	while(1)
+	{
+		USARTx_Send(DMA1_Stream3,&ch1,sizeof(uint8_t));
+		vTaskDelay(1000);
+	}
+// END OF TEST CODE
+
 
 	vDebugString("vNFCTask started");
+
+	vTaskDelay(1000);
 
 	nfc_init(&context);
 
@@ -137,12 +147,21 @@ void nfc_uart3_config(void){
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
 
 	/* GPIOD Configuration: USART3 TX on PD8 and RX on PD9 */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
 	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP ;
 	GPIO_Init(GPIOD, &GPIO_InitStructure);
+
+
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;//GPIO_PuPd_NOPULL ;
+	GPIO_Init(GPIOD, &GPIO_InitStructure);
+
 
 	/* Connect USART3 pins to AF */
 	GPIO_PinAFConfig(GPIOD, GPIO_PinSource8, GPIO_AF_USART3); // TX = PD8
@@ -176,16 +195,29 @@ void nfc_uart3_config(void){
 
 	// Enable the USART3 TX DMA Interrupt
 	NVIC_Init(&NVIC_InitStructure);
+
+	// USART IRQ init
+	NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream1_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0xF;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+
+	// Enable the USART3 RX DMA Interrupt
+	NVIC_Init(&NVIC_InitStructure);
+
+
 }
 
-static uint8_t usart3_rx_fifo_single_buffer;
+uint8_t usart3_rx_fifo_single_buffer;
 uint8_t ch1;
 
 portBASE_TYPE usart3_readSingleByte(uint8_t* ch,portTickType timeout){
 	  if(xQueueReceive( xQueueNFCRx, ch , timeout) == pdPASS){
+		  vDebugString("rx p");
 		  return pdPASS;
 	  }
 
+	  vDebugString("rx f");
 	  return pdFAIL;
 }
 
@@ -216,11 +248,11 @@ void DMA_usart3_Configuration(void)
   USART_DMACmd(USART3, USART_DMAReq_Tx, ENABLE);
   DMA_ITConfig(DMA1_Stream3, DMA_IT_TC, ENABLE);
   DMA_Cmd(DMA1_Stream3, ENABLE);
-  
+
   DMA_DeInit(DMA1_Stream1);
   DMA_RX_InitStructure.DMA_Channel = DMA_Channel_4;
   DMA_RX_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory; // Receive
-  DMA_RX_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&USART2->DR;
+  DMA_RX_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&USART3->DR;
   DMA_RX_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
   DMA_RX_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
   DMA_RX_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
@@ -232,13 +264,14 @@ void DMA_usart3_Configuration(void)
   DMA_RX_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
   DMA_RX_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
 
-  DMA_RX_InitStructure.DMA_Memory0BaseAddr = (uint32_t)(&usart3_rx_fifo_single_buffer);
+  DMA_RX_InitStructure.DMA_Memory0BaseAddr = (uint32_t)&usart3_rx_fifo_single_buffer;
   DMA_RX_InitStructure.DMA_BufferSize = (uint16_t)1;
 
   DMA_Init(DMA1_Stream1, &DMA_RX_InitStructure);
 
   USART_DMACmd(USART3, USART_DMAReq_Rx, ENABLE);
   DMA_ITConfig(DMA1_Stream1, DMA_IT_TC, ENABLE);
+
   DMA_Cmd(DMA1_Stream1, ENABLE);
 
 }
@@ -269,51 +302,9 @@ void DMA1_Stream1_IRQHandler(void){ // USART RX
 
     if(DMA_GetITStatus(DMA1_Stream1, DMA_IT_TCIF1))
     {
+    	xQueueSendFromISR(xQueueNFCRx,&usart3_rx_fifo_single_buffer,&xHigherPriorityTaskWoken);
         DMA_ClearITPendingBit(DMA1_Stream1,DMA_IT_TCIF1);
-        xQueueSendFromISR(xQueueNFCRx,&usart3_rx_fifo_single_buffer,&xHigherPriorityTaskWoken);
+
     }
 }
 
-void nfc_exti0_config(void){
-
-    EXTI_InitTypeDef EXTI_InitStructure;
-    GPIO_InitTypeDef GPIO_InitStructure;
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    /* Enable GPIOD clock */
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
-
-    /* Connect EXTI Line0 to PG10 pin */
-    SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOD, EXTI_PinSource10);
-
-    /* Configure PD10 pin as input floating */
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_25MHz;
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
-    GPIO_Init(GPIOD, &GPIO_InitStructure);
-
-    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
-    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStructure);
-
-    NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x0F;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-}
-
-void EXTI0_IRQHandler(void)
-{
-	portBASE_TYPE prio = pdFALSE;
-
-	if(EXTI_GetITStatus(EXTI_Line0) != RESET) //check if EXTI line is asserted
-	{
-		EXTI_ClearFlag(EXTI_Line0); //clear interrupt
-
-		// to do something
-	}
-}

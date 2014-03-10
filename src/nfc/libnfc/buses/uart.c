@@ -150,14 +150,16 @@ extern portBASE_TYPE NFC_ReadByte(USART_TypeDef* USARTx, uint8_t* rcvdByte,portT
 int uart_receive(USART_TypeDef* USARTx, uint8_t *pbtRx, const size_t szRx, void *abort_p, int timeout)
 {
 
-  for(int i = 0;i<szRx;i++){
-	  if(NFC_ReadByte(USARTx,&pbtRx[i],timeout) != pdPASS)
-	  {
-		  return NFC_ETIMEOUT;
-	  }
+    vDebugPrintf("szRx:%d,to:%d",szRx,timeout);
 
-	  vDebugPrintf("RX:%x",pbtRx[i]);
-  }
+	for(int i = 0;i<szRx;i++){
+		if(NFC_ReadByte(USARTx,&pbtRx[i],timeout) != pdPASS)
+		{
+		  return NFC_ETIMEOUT;
+		}
+
+		vDebugPrintf(":%x",pbtRx[i]);
+	}
 
   return NFC_SUCCESS;
 }
