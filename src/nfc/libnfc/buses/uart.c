@@ -150,7 +150,7 @@ extern portBASE_TYPE NFC_ReadByte(USART_TypeDef* USARTx, uint8_t* rcvdByte,portT
 int uart_receive(USART_TypeDef* USARTx, uint8_t *pbtRx, const size_t szRx, void *abort_p, int timeout)
 {
 
-    vDebugPrintf("szRx:%d,to:%d",szRx,timeout);
+    //vDebugPrintf("szRx:%d,to:%d",szRx,timeout);
 
 	for(int i = 0;i<szRx;i++){
 		if(NFC_ReadByte(USARTx,&pbtRx[i],timeout) != pdPASS)
@@ -159,6 +159,7 @@ int uart_receive(USART_TypeDef* USARTx, uint8_t *pbtRx, const size_t szRx, void 
 		}
 
 		vDebugPrintf(":%x",pbtRx[i]);
+
 	}
 
   return NFC_SUCCESS;
@@ -176,10 +177,11 @@ int uart_send(USART_TypeDef* USARTx, const uint8_t *pbtTx, const size_t szTx, in
   //LOG_HEX(LOG_GROUP, "TX", pbtTx, szTx);
 
 #ifdef STM32F40_41xxx
-
+/*
   for(i=0;i<szTx;i++){
 	  vDebugPrintf("%x",pbtTx[i]);
   }
+*/
 
   NFC_Send(pbtTx,szTx);
 
