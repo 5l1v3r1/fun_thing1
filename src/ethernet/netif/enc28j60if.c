@@ -49,12 +49,11 @@
 
 #include "enc28j60_lowlevel.h"
 
-#if 0
-
 /* Define those to better describe your network interface. */
 #define IFNAME0 'e'
 #define IFNAME1 'n'
 
+char mac_addr[6] = {0x01,0x23,0x45,0x67,0x89,0x90};
 /**
  * Helper struct to hold private data used to operate your ethernet interface.
  * Keeping the ethernet address of the MAC in this struct is not necessary
@@ -81,12 +80,12 @@ static void low_level_init(struct netif *netif)
   netif->hwaddr_len = ETHARP_HWADDR_LEN;
 
   /* set MAC hardware address */
-  /*netif->hwaddr[0] = mac_addr[0];
+  netif->hwaddr[0] = mac_addr[0];
   netif->hwaddr[1] = mac_addr[1];
   netif->hwaddr[2] = mac_addr[2];
   netif->hwaddr[3] = mac_addr[3];
   netif->hwaddr[4] = mac_addr[4];
-  netif->hwaddr[5] = mac_addr[5];*/
+  netif->hwaddr[5] = mac_addr[5];
 
   /* maximum transfer unit */
   netif->mtu = ETH_MAX_FRAMELEN;
@@ -273,7 +272,7 @@ void enc28j60_if_input(struct netif *netif)
 err_t enc28j60_if_init(struct netif *netif)
 {
   struct ethernetif *ethernetif;
-	const u8_t *mac_addr;
+	//KJW const u8_t *mac_addr;
 
   LWIP_ASSERT("netif != NULL", (netif != NULL));
     
@@ -319,4 +318,3 @@ void enc28j60_periodic(struct netif *netif)
 	enc28j60_if_input(netif);
 }
 
-#endif

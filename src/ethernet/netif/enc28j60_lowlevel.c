@@ -33,18 +33,21 @@
 #include "enc28j60_lowlevel.h"
 #include "enc28j60def.h"
 
+#include "stm32f4xx.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "debug.h"
 
-//#ifdef ENC28J60_ERRATA_B7
-//KJW #include <util/delay.h>
-//#endif //ENC28J60_ERRATA_B7
+#ifdef ENC28J60_ERRATA_B7
+#endif //ENC28J60_ERRATA_B7
 
-#if 0 //KJW
 
 #define cbi(p, q) ((p) &= ~_BV(q))
 #define sbi(p, q) ((p) |= _BV(q))
 #define nop() asm volatile("nop\n\t"::);
 
-
+#undef printf_P
+#define printf_P vDebugPrintf
 
 u8_t Enc28j60Bank;
 u16_t NextPacketPtr;
@@ -54,24 +57,22 @@ u8_t enc28j60ReadOp(u8_t op, u8_t address)
 	u8_t data;
    
 	// assert CS
-	ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
 	
 	// issue read command
-	SPDR = op | (address & ADDR_MASK);
-	while(!(SPSR & (1<<SPIF)));
+	SPI_I2S_SendData(SPI1,(uint16_t)(op | (address & ADDR_MASK)));
+
 	// read data
-	SPDR = 0x00;
-	while(!(SPSR & (1<<SPIF)));
+	data = SPI_I2S_ReceiveData(SPI1);
+
 	// do dummy read if needed
 	if(address & 0x80)
 	{
-		SPDR = 0x00;
-		while(!(SPSR & (1<<SPIF)));
+		data = SPI_I2S_ReceiveData(SPI1);
 	}
-	data = SPDR;
 	
 	// release CS
-	ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
 
 	return data;
 }
@@ -79,54 +80,52 @@ u8_t enc28j60ReadOp(u8_t op, u8_t address)
 void enc28j60WriteOp(u8_t op, u8_t address, u8_t data)
 {
 	// assert CS
-	ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
 
 	// issue write command
-	SPDR = op | (address & ADDR_MASK);
-	while(!(SPSR & (1<<SPIF)));
+	SPI_I2S_SendData(SPI1,(uint16_t)(op | (address & ADDR_MASK)));
+
 	// write data
-	SPDR = data;
-	while(!(SPSR & (1<<SPIF)));
+	SPI_I2S_SendData(SPI1,(uint16_t)data);
 
 	// release CS
-	ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
 }
 
 void enc28j60ReadBuffer(u16_t len, u8_t* data)
 {
 	// assert CS
-	ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
 	
 	// issue read command
-	SPDR = ENC28J60_READ_BUF_MEM;
-	while(!(SPSR & (1<<SPIF)));
+	//KJW SPDR = ENC28J60_READ_BUF_MEM;
+	SPI_I2S_SendData(SPI1,(uint16_t)ENC28J60_READ_BUF_MEM);
+	//KJW while(!(SPSR & (1<<SPIF)));
 	while(len--)
 	{
 		// read data
-		SPDR = 0x00;
-		while(!(SPSR & (1<<SPIF)));
-		*data++ = SPDR;
+		*data++ = SPI_I2S_ReceiveData(SPI1);
 	}	
+
 	// release CS
-	ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
 }
 
 void enc28j60WriteBuffer(u16_t len, u8_t* data)
 {
 	// assert CS
-	ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT &= ~(1<<ENC28J60_SS_PIN);
 	
 	// issue write command
-	SPDR = ENC28J60_WRITE_BUF_MEM;
-	while(!(SPSR & (1<<SPIF)));
+	SPI_I2S_SendData(SPI1,(uint16_t)ENC28J60_WRITE_BUF_MEM);
+
 	while(len--)
 	{
 		// write data
-		SPDR = *data++;
-		while(!(SPSR & (1<<SPIF)));
+		SPI_I2S_SendData(SPI1,(uint16_t)*data++);
 	}	
 	// release CS
-	ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
+	//KJW ENC28J60_CONTROL_PORT |= (1<<ENC28J60_SS_PIN);
 }
 
 void enc28j60SetBank(u8_t address)
@@ -206,64 +205,119 @@ void enc28j60PhyWrite(u8_t address, u16_t data)
 	while(enc28j60Read(MISTAT) & MISTAT_BUSY);
 }
 
-
 void enc28j60SoftwareReset(void)
 {
-
 	// perform system reset
 	enc28j60WriteOp(ENC28J60_SOFT_RESET, 0, ENC28J60_SOFT_RESET);
-  
-  //#ifdef ENC28J60_ERRATA_B7
-  _delay_ms(1); //wait for 1 ms
-  //#else
-	// check CLKRDY bit to see if reset is complete
-	//int i;
-	//for(i=0;i<0x10;i++){
-	//	for(j=0;j<0xff;j++) ;
-	//}
-	//while(!(enc28j60Read(ESTAT) & ESTAT_CLKRDY));
-  //#endif //ENC28J60_ERRATA_B7
+	vTaskDelay(1);
 }
 
+void EXTI0_IRQHandler(void){
+	if(EXTI_GetITStatus(EXTI_Line0) != RESET)
+	  {
+	    // ...
+
+	    /* Clear the EXTI line pending bit */
+	    EXTI_ClearITPendingBit(EXTI_Line0);
+	  }
+}
 
 void enc28j60Init(uint8_t *eth_addr,u8_t DuplexState)
 {
-	u8_t i,j;
-	// initialize I/O
-	sbi(ENC28J60_CONTROL_DDR,  ENC28J60_SS_PIN);
-	sbi(ENC28J60_CONTROL_PORT, ENC28J60_SS_PIN);
-#ifdef ENC28J60_ENABLE_RESET
-  sbi(ENC28J60_CONTROL_PORT, ENC28J60_RESET_PIN);
-  sbi(ENC28J60_CONTROL_DDR,  ENC28J60_RESET_PIN);
-#endif //ENC28J60_ENABLE_RESET
-#ifdef ENC28J60_ENABLE_INT
-  sbi(ENC28J60_CONTROL_PORT, ENC28J60_INT_PIN);
-  cbi(ENC28J60_CONTROL_DDR,  ENC28J60_INT_PIN);
-#endif //ENC28J60_ENABLE_INT  
-  
-	// setup SPI I/O pins
-	sbi(PORTB, ENC28J60_SCK_PIN);	// set SCK hi
-	sbi(ENC28J60_CONTROL_DDR, ENC28J60_SCK_PIN);	// set SCK as output
-	cbi(ENC28J60_CONTROL_DDR, ENC28J60_MISO_PIN);	// set MISO as input
-	sbi(ENC28J60_CONTROL_DDR, ENC28J60_MOSI_PIN);	// set MOSI as output
-	sbi(ENC28J60_CONTROL_DDR, ENC28J60_SS_PIN);	  // SS must be output for Master mode to work
-	// initialize SPI interface
-	// master mode
-	sbi(SPCR, MSTR);
-	// select clock phase positive-going in middle of data
-	cbi(SPCR, CPOL);
-	// Data order MSB first
-	cbi(SPCR,DORD);
 
-	// switch to f/4 2X = f/2 bitrate
-	cbi(SPCR, SPR0);
-	cbi(SPCR, SPR1);
-	sbi(SPSR, SPI2X);
+	GPIO_InitTypeDef GPIO_InitStruct;
+	SPI_InitTypeDef SPI_InitStruct;
+	EXTI_InitTypeDef EXTI_InitStruct;
+	NVIC_InitTypeDef NVIC_InitStruct;
 
-	// enable SPI
-	sbi(SPCR, SPE);
+	// enable clock for used IO pins
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
 
-  enc28j60SoftwareReset();
+	/* configure pins used by SPI1
+	 * PA5 = SCK
+	 * PA6 = MISO
+	 * PA7 = MOSI
+	 */
+
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_7 | GPIO_Pin_6 | GPIO_Pin_5;
+	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+	/*
+	 * PA15 = NSS
+	 * Configure the chip select pin in this case we will use PA15
+	*/
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_15;
+	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_UP;
+	GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+	SPI_SSOutputCmd(SPI1,ENABLE);
+
+	// connect SPI1 pins to SPI alternate function
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource5,  GPIO_AF_SPI1);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource6,  GPIO_AF_SPI1);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource7,  GPIO_AF_SPI1);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource15, GPIO_AF_SPI1);
+
+	// enable clock for used IO pins
+	// RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
+
+	/*
+	 * PA8 = interrupt
+	 * Configure the chip select pin in this case we will use PA8
+	*/
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_8;
+	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN;
+	GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_UP;
+	GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+	//GPIOA->BSRRL |= GPIO_Pin_8; // set PA8 high
+
+	// connect EXTI Line0 to PE15
+	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOE, EXTI_PinSource15);
+
+	EXTI_InitStruct.EXTI_Line = EXTI_Line0;
+	EXTI_InitStruct.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Rising;
+	EXTI_InitStruct.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTI_InitStruct);
+
+	/* Enable and set EXTI Line0 Interrupt to the lowest priority */
+	NVIC_InitStruct.NVIC_IRQChannel = EXTI0_IRQn;
+	NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 0x0F;
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0x0;
+	NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStruct);
+
+
+	// enable peripheral clock
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
+
+	/* configure SPI1 in Mode 0
+	 * CPOL = 0 --> clock is low when idle
+	 * CPHA = 0 --> data is sampled at the first edge
+	 */
+	SPI_InitStruct.SPI_Direction = SPI_Direction_2Lines_FullDuplex; // set to full duplex mode, seperate MOSI and MISO lines
+	SPI_InitStruct.SPI_Mode = SPI_Mode_Master;     // transmit in master mode, NSS pin has to be always high
+	SPI_InitStruct.SPI_DataSize = SPI_DataSize_8b; // one packet of data is 8 bits wide
+	SPI_InitStruct.SPI_CPOL = SPI_CPOL_Low;        // clock is low when idle
+	SPI_InitStruct.SPI_CPHA = SPI_CPHA_1Edge;      // data sampled at first edge
+	SPI_InitStruct.SPI_NSS = SPI_NSS_Hard;			// set the NSS management to
+	SPI_InitStruct.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; // SPI frequency is APB2 frequency / 4
+	SPI_InitStruct.SPI_FirstBit = SPI_FirstBit_MSB;// data is transmitted MSB first
+	SPI_Init(SPI1, &SPI_InitStruct);
+
+	SPI_Cmd(SPI1, ENABLE); // enable SPI1
+
+ 	enc28j60SoftwareReset();
   
 	// do bank 0 stuff
 	// initialize receive buffer
@@ -279,8 +333,8 @@ void enc28j60Init(uint8_t *eth_addr,u8_t DuplexState)
 	// set transmit buffer start
 	enc28j60Write16(ETXSTL, ENC28J60_TXSTART_INIT);
   
-  // allow Unicast to US and Broad cast packets with correct CRC
-  enc28j60Write(ERXFCON, ERXFCON_CRCEN|ERXFCON_UCEN|ERXFCON_BCEN);//ERXFCON_UCEN||ERXFCON_PMEN
+	// allow Unicast to US and Broad cast packets with correct CRC
+	enc28j60Write(ERXFCON, ERXFCON_CRCEN|ERXFCON_UCEN|ERXFCON_BCEN);//ERXFCON_UCEN||ERXFCON_PMEN
 
 	// do bank 2 stuff
 	// enable MAC receive
@@ -311,8 +365,8 @@ void enc28j60Init(uint8_t *eth_addr,u8_t DuplexState)
 	// no loopback of transmitted frames
 	enc28j60PhyWrite(PHCON2, PHCON2_HDLDIS);
   
-  // 0x476 is PHLCON LEDA=links status, LEDB=receive/transmit
-  enc28j60PhyWrite(PHLCON,0x476);
+	// 0x476 is PHLCON LEDA=links status, LEDB=receive/transmit
+	enc28j60PhyWrite(PHLCON,0x476);
 
 	// switch to bank 0
 	// enable interrutps
@@ -484,19 +538,18 @@ void enc28j60ReceiveOverflowRecover(void)
 
 void enc28j60RegDump(void)
 {
-#ifdef ENC28J60_DEBUG
-  printf_P(PSTR("RevID: 0x%x\r\n"), enc28j60Read(EREVID));
+  printf_P("RevID: 0x%x\r\n", enc28j60Read(EREVID));
 
-  printf_P(PSTR("Cntrl: ECON1 ECON2 ESTAT  EIR  EIE\r\n"));
-  printf_P(PSTR("       0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\r\n"),
+  printf_P("Cntrl: ECON1 ECON2 ESTAT  EIR  EIE\r\n");
+  printf_P("       0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\r\n",
     enc28j60Read(ECON1),
     enc28j60Read(ECON2),
     enc28j60Read(ESTAT),
     enc28j60Read(EIR),
     enc28j60Read(EIE));
 
-  printf_P(PSTR("PHY  : PHCON1  PHSTAT1 PHSTAT2 PHID1 PHID2 PHCON2 PHIE PHIR PHLCON\r\n"));
-  printf_P(PSTR("       %04x    %04x    %04x    %04x  %04x   %04x  %04x %04x %04x\r\n"),
+  printf_P("PHY  : PHCON1  PHSTAT1 PHSTAT2 PHID1 PHID2 PHCON2 PHIE PHIR PHLCON\r\n");
+  printf_P("       %04x    %04x    %04x    %04x  %04x   %04x  %04x %04x %04x\r\n",
      enc28j60PhyRead(PHCON1),
      enc28j60PhyRead(PHSTAT1),
      enc28j60PhyRead(PHSTAT2),
@@ -507,8 +560,8 @@ void enc28j60RegDump(void)
      enc28j60PhyRead(PHIR),
      enc28j60PhyRead(PHLCON));
 
-  printf_P(PSTR("MAC  : MACON1  MACON3  MACON4  MAC-Address\r\n"));
-  printf_P(PSTR("       0x%02x  0x%02x 0x%02x   %02x:%02x:%02x:%02x:%02x:%02x\r\n"),
+  printf_P("MAC  : MACON1  MACON3  MACON4  MAC-Address\r\n");
+  printf_P("       0x%02x  0x%02x 0x%02x   %02x:%02x:%02x:%02x:%02x:%02x\r\n",
      enc28j60Read(MACON1),
      enc28j60Read(MACON3),
      enc28j60Read(MACON4),
@@ -519,21 +572,23 @@ void enc28j60RegDump(void)
      enc28j60Read(MAADR1),
      enc28j60Read(MAADR0));
 
-  printf_P(PSTR("Rx   : ERXST  ERXND  ERXWRPT ERXRDPT ERXFCON EPKTCNT MAMXFL\r\n"));
-  printf_P(PSTR("       0x%04x 0x%04x 0x%04x   0x%04x 0x%02x 0x%02x 0x%04x\r\n"),
+  printf_P("Rx   : ERXST  ERXND  ERXWRPT ERXRDPT ERXFCON EPKTCNT MAMXFL\r\n");
+  printf_P("       0x%04x 0x%04x 0x%04x   0x%04x 0x%02x 0x%02x 0x%04x\r\n",
      enc28j60Read16(ERXSTL),
      enc28j60Read16(ERXNDL),
      enc28j60Read16(ERXWRPTL),
-     (enc28j60Read16(ERXRDPTL),
+     enc28j60Read16(ERXRDPTL),
      enc28j60Read(ERXFCON),
      enc28j60Read(EPKTCNT),
      enc28j60Read16(MAMXFLL));
 
-  printf_P(PSTR("Tx   : ETXST  ETXND  MACLCON1 MACLCON2 MAPHSUP\r\n"));
-  printf_P(PSTR("       0x%04x 0x%04x 0x%04x   0x%02x   0x%02x\r\n"),
+  printf_P("Tx   : ETXST  ETXND  MACLCON1 MACLCON2 MAPHSUP\r\n");
+  printf_P("       0x%04x 0x%04x 0x%04x   0x%02x   0x%02x\r\n",
            enc28j60Read16(ETXNDL),
-     (enc28j60Read(MACLCON1)<<8)|enc28j60Read(ETXNDL),
-#endif//ENC28J60_DEBUG     
+           enc28j60Read(ETXNDL),
+           enc28j60Read(MACLCON1),
+           enc28j60Read(MACLCON2),
+           enc28j60Read(MAPHSUP));
 }
 
-#endif
+

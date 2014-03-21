@@ -207,7 +207,8 @@ static xSemaphoreHandle xTestSemaphore = NULL;
 
 /*-----------------------------------------------------------*/
 extern void initNFC(void);
-
+extern void createEthernetTask(void);
+extern void HwInit( void );
 
 int main(void)
 {
@@ -225,7 +226,7 @@ int main(void)
 	createDebugTask();
 	createLEDTask();
 	createNFCTask();
-
+	createEthernetTask();
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();

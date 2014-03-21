@@ -21,7 +21,7 @@ void vEthernetTask(void* pvParameters );
 
 void createEthernetTask(void){
 
-	xTaskCreate(vEthernetTask,(char*) "EthernetTest", configMINIMAL_STACK_SIZE, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, &xEthernet );
+	xTaskCreate(vEthernetTask,(char*) "EthernetTest", configMINIMAL_STACK_SIZE*10, ( void * ) NULL, (tskIDLE_PRIORITY+1)| portPRIVILEGE_BIT, &xEthernet );
 
 }
 

@@ -35,6 +35,9 @@
  * critical regions during buffer allocation, deallocation and memory
  * allocation and deallocation.
  */
+
+#define ETH_MAX_FRAMELEN 1500
+
 #define SYS_LIGHTWEIGHT_PROT    0
 
 #define ETHARP_TRUST_IP_MAC     0
