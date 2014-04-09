@@ -58,9 +58,9 @@ void spi2_config(){
 	GPIO_DeInit(GPIOB);
 
 	/* Connect SPI pins to AF5 */
-	GPIO_PinAFConfig(GPIOB, GPIO_PinSource11, GPIO_AF_SPI2);
 	GPIO_PinAFConfig(GPIOB, GPIO_PinSource12, GPIO_AF_SPI2);
 	GPIO_PinAFConfig(GPIOB, GPIO_PinSource13, GPIO_AF_SPI2);
+	GPIO_PinAFConfig(GPIOB, GPIO_PinSource14, GPIO_AF_SPI2);
 	GPIO_PinAFConfig(GPIOB, GPIO_PinSource15, GPIO_AF_SPI2);
 
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
@@ -69,15 +69,15 @@ void spi2_config(){
 	GPIO_InitStructure.GPIO_PuPd  = GPIO_PuPd_DOWN;
 
 	/* SPI NSS pin configuration */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	/* SPI SCK pin configuration */
-	GPIO_InitStructure.GPIO_Pin =  GPIO_Pin_12;
+	GPIO_InitStructure.GPIO_Pin =  GPIO_Pin_13;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	/* SPI  MISO pin configuration */
-	GPIO_InitStructure.GPIO_Pin =  GPIO_Pin_13;
+	GPIO_InitStructure.GPIO_Pin =  GPIO_Pin_14;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	/* SPI  MOSI pin configuration */
@@ -91,7 +91,7 @@ void spi2_config(){
 	SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
 	SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
 	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
-	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_256;
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_128;
 	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
 	SPI_InitStructure.SPI_CRCPolynomial = 7;
 
