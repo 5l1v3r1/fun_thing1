@@ -238,6 +238,105 @@ void vDebugString( char* s ) {
 	taskEXIT_CRITICAL();
 }
 
+char* itoa(int32_t value,char* result,uint32_t* pos,uint8_t base)
+{
+	int32_t neg = 0;
+	char digit[] = "0123456789ABCDEF";
+	int32_t tmp;
+	int32_t s = *pos;
+
+	if(base < 2 || base > 16)
+	{
+		*result = '\0';
+		return result;
+	}
+
+	if(base == 10 && value < 0)
+	{
+		neg = 1;
+		value = -value;
+	}
+
+	do{
+		tmp = value/base;
+		result[(*pos)++] = digit[value-tmp*base];
+		value = tmp;
+	}while(value);
+
+
+	if(neg)
+	{
+		result[(*pos)++] = '-';
+	}
+
+	result[*pos] = '\0';
+
+	neg = *pos-1;
+	for( ; s < neg ; s++,neg--)
+	{
+		tmp = result[s];
+		result[s] = result[neg];
+		result[neg] = tmp;
+	}
+
+	return result;
+}
+
+void vDebugMessagef(const char *fmt,...)
+{
+	char fmt_buffer[128];
+	const char* p;
+	va_list argp;
+	int32_t i;
+	int32_t len = 0;
+	int32_t tmp = 0;
+	char *s;
+
+	va_start(argp,fmt);
+
+	for(p = fmt; *p != '\0'; p++ )
+	{
+		if(*p != '%')
+		{
+			fmt_buffer[tmp++] = *p;
+			continue;
+		}
+
+		switch(*++p)
+		{
+			case 'c':
+				i = va_arg(argp,int);
+				fmt_buffer[tmp++]=(char)i;
+				putchar(i);
+			break;
+			case 'd':
+				i = va_arg(argp,int);
+				itoa(i,(char*)&fmt_buffer,&tmp,10);
+			break;
+			case 's':
+				s = va_arg(argp,char*);
+				len = strlen(s);
+				memcpy(&fmt_buffer[tmp],s,len+1);
+				tmp += len;
+			break;
+			case 'x':
+				i = va_arg(argp,int);
+				len = strlen(s);
+				itoa(i,(char*)&fmt_buffer,&tmp,16);
+			break;
+			default:
+				fmt_buffer[tmp++] = '?';
+				break;
+		}
+
+	}
+
+	va_end(argp);
+
+	vDebugString( fmt_buffer );
+
+}
+
 // Simply print to the debug console a string based on the type of reset.
 // ============================================================================
 void vDebugPrintResetType( void ) {
